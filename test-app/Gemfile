@@ -1,0 +1,5 @@
+source 'https://rubygems.org'
+ruby '>= 2.6.10'
+
+gem "fastlane", "~> 2.229.1"
+gem "cocoapods", "~> 1.16.2"

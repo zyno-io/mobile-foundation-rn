@@ -1,0 +1,35 @@
+type BaseThemeKeys =
+    | 'transparent'
+    | 'white'
+    | 'black'
+    | 'background'
+    | 'surface'
+    | 'text'
+    | 'secondaryText'
+    | 'accent'
+    | 'primaryButtonBackground'
+    | 'primaryButtonText'
+    | 'secondaryButtonBackground'
+    | 'secondaryButtonText'
+    | 'cardBackground'
+    | 'cardBorder'
+    | 'cardText'
+    | 'cardSecondaryText'
+    | 'cardTertiaryText'
+    | 'fieldLabel'
+    | 'inputBackground'
+    | 'inputInvalidBackground'
+    | 'inputText'
+    | 'inputIcon'
+    | 'inputPlaceholderText'
+    | 'selectedItemBackground'
+    | 'selectedItemBorder'
+    | 'selectedItemText'
+    | 'infoText'
+    | 'dangerBackground'
+    | 'dangerButtonBackground'
+    | 'dangerButtonText';
+
+export type ColorScheme = { [_K in BaseThemeKeys]: string } & Record<string, string>;
+
+export type CreateColorScheme<T extends string = never> = { [_K in BaseThemeKeys | T]: string };

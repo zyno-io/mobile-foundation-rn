@@ -1,0 +1,6 @@
+node_modules
+dist
+install-state.gz
+docs/.vitepress/cache
+docs/.vitepress/dist
+

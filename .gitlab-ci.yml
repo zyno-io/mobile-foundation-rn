@@ -1,0 +1,168 @@
+image: node:24-alpine
+
+default:
+  interruptible: true
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH
+
+stages:
+  - build
+  - e2e
+  - deploy
+  - mirror
+
+build:
+  stage: build
+  script:
+    - |
+      set -x
+
+      apk add git
+      corepack enable
+
+      yarn --immutable
+
+      yarn typecheck
+
+      rm -rf dist
+      npx tsc -p tsconfig.json
+
+      BUILD_VERSION=$(TZ=UTC0 git show -s --format=%cd --date=format-local:'%y.%m%d.%H%M' HEAD)
+      BUILD_VERSION=$(echo -n ${BUILD_VERSION} | sed -E 's/\.0+/./g')
+
+      if [ "$CI_COMMIT_BRANCH" != "main" ]; then
+        SHORT_SHA=$(echo "$CI_COMMIT_SHA" | head -c 7)
+        BUILD_VERSION="${BUILD_VERSION}-canary.${SHORT_SHA}"
+      fi
+
+      npm version ${BUILD_VERSION} --git-tag-version=false
+  artifacts:
+    paths:
+      - dist/
+      - package.json
+
+.e2e-base:
+  stage: e2e
+  needs: []
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[skip e2e\]/
+      when: never
+    - when: on_success
+
+e2e:ios:
+  extends: .e2e-base
+  tags:
+    - mac
+  variables:
+    DETOX_IOS_DEVICE: iPhone 17 Pro
+    SENTRY_DISABLE_AUTO_UPLOAD: "true"
+  script:
+    - |
+      # https://docs.expo.dev/troubleshooting/clear-cache-macos-linux/
+      rm -fr $TMPDIR/haste-map-*
+      rm -rf $TMPDIR/metro-cache
+    - |
+      export PATH="$HOME/.asdf/shims:$PATH"
+      . "$HOME/.asdf/asdf.sh"
+      asdf install
+      asdf reshim
+    - command -v applesimutils >/dev/null || (brew tap wix/brew && brew install applesimutils)
+    - corepack enable
+    - yarn --immutable
+    - cd test-app
+    - yarn --immutable
+    - bundle install
+    - cd ios && LANG=en_US.UTF-8 pod install --deployment && cd ..
+    - npx detox build -c ios.sim.release
+    - npx detox test -c ios.sim.release --headless
+  artifacts:
+    when: always
+    paths:
+      - test-app/artifacts/
+    expire_in: 7 days
+
+e2e:android:
+  extends: .e2e-base
+  image: reactnativecommunity/react-native-android:latest
+  tags:
+    - kvm
+  variables:
+    DETOX_ANDROID_AVD: detox_pixel_api_34
+    SENTRY_DISABLE_AUTO_UPLOAD: "true"
+    ORG_GRADLE_PROJECT_reactNativeArchitectures: x86_64
+  script:
+    # Install system image and create AVD
+    - |
+      sdkmanager "system-images;android-34;google_apis;x86_64"
+      if ! avdmanager list avd -c 2>/dev/null | grep -q "$DETOX_ANDROID_AVD"; then
+        echo "Creating AVD: $DETOX_ANDROID_AVD"
+        echo "no" | avdmanager create avd -n "$DETOX_ANDROID_AVD" -k "system-images;android-34;google_apis;x86_64" -d pixel_6 --force
+      fi
+    # Boot emulator in background
+    - |
+      emulator -avd "$DETOX_ANDROID_AVD" -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -partition-size 2048 &
+      adb wait-for-device
+      echo "Device detected, waiting for boot (TCG mode — this may take a few minutes)..."
+      SECONDS=0
+      while [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" != "1" ]; do
+        if [ $SECONDS -ge 600 ]; then
+          echo "ERROR: Boot timed out after ${SECONDS}s"
+          exit 1
+        fi
+        sleep 5
+      done
+      echo "Boot completed in ${SECONDS}s"
+    # Disable animations and autofill for stable tests
+    - |
+      adb shell settings put global window_animation_scale 0
+      adb shell settings put global transition_animation_scale 0
+      adb shell settings put global animator_duration_scale 0
+      adb shell settings put secure autofill_service null
+    - corepack enable
+    - yarn --immutable
+    - cd test-app
+    - yarn --immutable
+    - npx detox build -c android.emu.release
+    - npx detox test -c android.emu.release --headless
+    - adb emu kill 2>/dev/null || true
+  artifacts:
+    when: always
+    paths:
+      - test-app/artifacts/
+    expire_in: 7 days
+
+deploy:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_MESSAGE =~ /\[skip deploy\]/
+      when: never
+    - when: on_success
+  script:
+    - |
+      npm config set -- //${PRIVATE_NPM_HOST}/:_authToken="${PRIVATE_NPM_PUBLISHER_TOKEN}"
+
+      if [ "$CI_COMMIT_BRANCH" = "main" ]; then
+        npm publish --registry https://${PRIVATE_NPM_HOST}/
+
+        npm config set //registry.npmjs.org/:_authToken="${NPM_PUBLISH_TOKEN}"
+        npm publish --registry https://registry.npmjs.org/ --access public
+      else
+        npm publish --registry https://${PRIVATE_NPM_HOST}/ --tag canary
+      fi
+
+mirror:
+  stage: mirror
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  image:
+    name: alpine/git
+    entrypoint: ['']
+  script: |
+    export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+    mkdir ~/.ssh
+    echo $GITHUB_SSH_KEY_B64 | base64 -d > ~/.ssh/id_ed25519
+    chmod 600 ~/.ssh/id_ed25519
+    git remote add github git@github.com:zyno-io/mobile-foundation-rn.git
+    git push -u github HEAD:main --force

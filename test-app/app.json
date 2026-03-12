@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "FoundationTestApp",
+    "slug": "foundation-test-app",
+    "version": "1.0.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.zyno.foundation.testapp"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.zyno.foundation.testapp"
+    },
+    "newArchEnabled": true,
+    "plugins": [
+      "expo-font",
+      ["@sentry/react-native", { "organization": "test", "project": "test" }]
+    ]
+  }
+}
