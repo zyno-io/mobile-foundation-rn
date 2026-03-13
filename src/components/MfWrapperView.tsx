@@ -8,16 +8,16 @@ import Animated, { AnimatedStyle, useDerivedValue } from 'react-native-reanimate
 import { hasHeightOrFlexProps } from '../helpers/layout';
 
 import { useMfKeyboardHeight } from '../hooks/useMfKeyboardHeight';
-import { Inset, useMFSafeAreaInsets } from '../hooks/useMfSafeAreaInsets';
+import { Inset, useMfSafeAreaInsets } from '../hooks/useMfSafeAreaInsets';
 
-export interface MFWrapperViewCommonProps {
+export interface MfWrapperViewCommonProps {
     safeArea?: boolean | Inset[] | Inset;
     noKeyboardAvoiding?: boolean;
     noLayoutCheck?: boolean;
     layoutAfterTransition?: boolean;
 }
 
-interface MFWrapperViewProps extends MFWrapperViewCommonProps {
+interface MfWrapperViewProps extends MfWrapperViewCommonProps {
     style?: ViewProps['style'];
     children: ViewProps['children'];
     center?: boolean;
@@ -25,8 +25,8 @@ interface MFWrapperViewProps extends MFWrapperViewCommonProps {
     onInsetsPaddingUpdated?: (padding: Insets) => void;
 }
 
-export const MFWrapperView: React.FC<MFWrapperViewProps> = props => {
-    const insets = useMFSafeAreaInsets(props.safeArea);
+export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
+    const insets = useMfSafeAreaInsets(props.safeArea);
     const { keyboardOverlapsView, keyboardHeight, KeyboardHeightProvider } = useMfKeyboardHeight(!props.noKeyboardAvoiding);
 
     // calculate our distance from top/bottom whenever we layout
@@ -53,7 +53,7 @@ export const MFWrapperView: React.FC<MFWrapperViewProps> = props => {
         [viewRef]
     );
     const onLayoutDb = useCallback(
-        // need to debounce because nested MFWrapperViews will continuously shrink during a keyboard animation,
+        // need to debounce because nested MfWrapperViews will continuously shrink during a keyboard animation,
         // causing onLayout to be fired so rapidly that it causes jitter
         debounce(() => onLayout(), 100, { leading: true, trailing: true }),
         [onLayout]

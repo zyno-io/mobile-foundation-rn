@@ -5,14 +5,14 @@ import { observer } from 'mobx-react-lite';
 import { createStyles, useStyles } from '../helpers/styles';
 import { LoaderState } from '../helpers/observable';
 
-import { MFLoader } from './MFLoader';
+import { MfLoader } from './MfLoader';
 
-export const MFLoaderOverlay: React.FC<{ solo?: boolean }> = ({ solo }) => {
+export const MfLoaderOverlay: React.FC<{ solo?: boolean }> = ({ solo }) => {
     const styles = useStyles(styleGen);
 
     return (
         <View style={[styles.outerWrapper, solo && styles.solo]}>
-            <MFLoader background />
+            <MfLoader background />
         </View>
     );
 };
@@ -21,7 +21,7 @@ export const GlobalLoaderOverlay = observer(() => {
     if (LoaderState.loaderCount === 0) {
         return null;
     }
-    return <MFLoaderOverlay />;
+    return <MfLoaderOverlay />;
 });
 
 const styleGen = createStyles(() => ({

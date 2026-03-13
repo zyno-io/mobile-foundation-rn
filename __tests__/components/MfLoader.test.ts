@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('MFLoader', () => {
+describe('MfLoader', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -12,11 +12,11 @@ describe('MFLoader', () => {
     it('renders spinner icon from config', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFLoader } = require('../../src/components/MFLoader');
+        const { MfLoader } = require('../../src/components/MfLoader');
 
         let tree: any;
         renderer.act(() => {
-            tree = renderer.create(React.createElement(MFLoader));
+            tree = renderer.create(React.createElement(MfLoader));
         });
 
         const json = tree.toJSON();
@@ -42,11 +42,11 @@ describe('MFLoader', () => {
     it('uses primaryButtonBackground color by default', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFLoader } = require('../../src/components/MFLoader');
+        const { MfLoader } = require('../../src/components/MfLoader');
 
         let tree: any;
         renderer.act(() => {
-            tree = renderer.create(React.createElement(MFLoader));
+            tree = renderer.create(React.createElement(MfLoader));
         });
 
         const findIcon = (node: any): any => {
@@ -69,12 +69,12 @@ describe('MFLoader', () => {
     it('accepts custom color prop', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFLoader } = require('../../src/components/MFLoader');
+        const { MfLoader } = require('../../src/components/MfLoader');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFLoader, { color: 'green' }),
+                React.createElement(MfLoader, { color: 'green' }),
             );
         });
 
@@ -95,14 +95,14 @@ describe('MFLoader', () => {
         expect(icon.props.color).toBe('green');
     });
 
-    it('MFLoaderView centers loader', () => {
+    it('MfLoaderView centers loader', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFLoaderView } = require('../../src/components/MFLoader');
+        const { MfLoaderView } = require('../../src/components/MfLoader');
 
         let tree: any;
         renderer.act(() => {
-            tree = renderer.create(React.createElement(MFLoaderView));
+            tree = renderer.create(React.createElement(MfLoaderView));
         });
 
         const json = tree.toJSON();

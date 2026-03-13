@@ -1,6 +1,6 @@
 # useNextTextInputRef
 
-Integrates a text input with the parent `Form` context for automatic keyboard navigation.
+Integrates a text input with the parent `MfForm` context for automatic keyboard navigation.
 
 ## Usage
 
@@ -31,12 +31,12 @@ function CustomInput({ placeholder }: { placeholder: string }) {
 ## How It Works
 
 1. On mount, measures the input's position on screen
-2. Registers the input and its position with the parent `Form` context
-3. `focusNext()` calls `Form.getNextInput()` which returns the next input sorted by position
+2. Registers the input and its position with the parent `MfForm` context
+3. `focusNext()` calls `MfForm.getNextInput()` which returns the next input sorted by position
 4. On unmount, unregisters from the form
 
-If used outside a `<Form>`, the hook is a no-op — `ref` still works as a normal ref, and `focusNext` blurs the input.
+If used outside a `<MfForm>`, the hook is a no-op — `ref` still works as a normal ref, and `focusNext` blurs the input.
 
 ::: tip
-You don't need this hook for `MFTextInput` or `MFTextArea` — they use it internally. This is for building custom input components that participate in form navigation.
+You don't need this hook for `MfTextInput` or `MfTextArea` — they use it internally. This is for building custom input components that participate in form navigation.
 :::

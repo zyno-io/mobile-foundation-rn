@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('MFTextInput', () => {
+describe('MfTextInput', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -40,12 +40,12 @@ describe('MFTextInput', () => {
     it('renders placeholder', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextInput } = require('../../src/components/MFTextInput');
+        const { MfTextInput } = require('../../src/components/MfTextInput');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextInput, { placeholder: 'Enter name' }),
+                React.createElement(MfTextInput, { placeholder: 'Enter name' }),
             );
         });
 
@@ -56,12 +56,12 @@ describe('MFTextInput', () => {
     it('renders label above input', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextInput } = require('../../src/components/MFTextInput');
+        const { MfTextInput } = require('../../src/components/MfTextInput');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextInput, { label: 'Name' }),
+                React.createElement(MfTextInput, { label: 'Name' }),
             );
         });
 
@@ -73,12 +73,12 @@ describe('MFTextInput', () => {
     it('sets editable to false when disabled', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextInput } = require('../../src/components/MFTextInput');
+        const { MfTextInput } = require('../../src/components/MfTextInput');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextInput, { disabled: true }),
+                React.createElement(MfTextInput, { disabled: true }),
             );
         });
 
@@ -89,11 +89,11 @@ describe('MFTextInput', () => {
     it('applies maxFontSizeMultiplier of 1.5', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextInput } = require('../../src/components/MFTextInput');
+        const { MfTextInput } = require('../../src/components/MfTextInput');
 
         let tree: any;
         renderer.act(() => {
-            tree = renderer.create(React.createElement(MFTextInput));
+            tree = renderer.create(React.createElement(MfTextInput));
         });
 
         const input = findByType(tree.toJSON(), 'TextInput');
@@ -103,13 +103,13 @@ describe('MFTextInput', () => {
     it('phone mask formats input via onChangeText', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextInput } = require('../../src/components/MFTextInput');
+        const { MfTextInput } = require('../../src/components/MfTextInput');
 
         const onChangeText = jest.fn();
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextInput, {
+                React.createElement(MfTextInput, {
                     mask: 'phone',
                     onChangeText,
                 }),
@@ -128,13 +128,13 @@ describe('MFTextInput', () => {
     it('currency mask formats input via onChangeText', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextInput } = require('../../src/components/MFTextInput');
+        const { MfTextInput } = require('../../src/components/MfTextInput');
 
         const onChangeText = jest.fn();
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextInput, {
+                React.createElement(MfTextInput, {
                     mask: 'currency',
                     onChangeText,
                 }),
@@ -152,12 +152,12 @@ describe('MFTextInput', () => {
     it('renders icon with padding when icon prop provided', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextInput } = require('../../src/components/MFTextInput');
+        const { MfTextInput } = require('../../src/components/MfTextInput');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextInput, { icon: 'search' }),
+                React.createElement(MfTextInput, { icon: 'search' }),
             );
         });
 

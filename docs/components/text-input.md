@@ -1,18 +1,18 @@
-# MFTextInput
+# MfTextInput
 
-Themed text input with optional icon, label, and input masks. Integrates with `Form` for keyboard navigation.
+Themed text input with optional icon, label, and input masks. Integrates with `MfForm` for keyboard navigation.
 
 ## Usage
 
 ```tsx
-import { MFTextInput } from '@zyno-io/mobile-foundation-rn';
+import { MfTextInput } from '@zyno-io/mobile-foundation-rn';
 import { faPhone } from '@fortawesome/free-solid-svg-icons';
 
 // Basic
-<MFTextInput placeholder="Name" />
+<MfTextInput placeholder="Name" />
 
 // With label and icon
-<MFTextInput
+<MfTextInput
     label="Phone"
     placeholder="(555) 123-4567"
     mask="phone"
@@ -21,7 +21,7 @@ import { faPhone } from '@fortawesome/free-solid-svg-icons';
 />
 
 // Disabled
-<MFTextInput placeholder="Read only" disabled value="Fixed value" />
+<MfTextInput placeholder="Read only" disabled value="Fixed value" />
 ```
 
 ## Props
@@ -44,7 +44,7 @@ Extends all standard React Native `TextInputProps`, plus:
 Formats input as `(XXX) XXX-XXXX`:
 
 ```tsx
-<MFTextInput mask="phone" placeholder="Phone number" />
+<MfTextInput mask="phone" placeholder="Phone number" />
 ```
 
 Typing `5551234567` displays as `(555) 123-4567`. Strips the `+1` prefix if present.
@@ -54,17 +54,17 @@ Typing `5551234567` displays as `(555) 123-4567`. Strips the `+1` prefix if pres
 Adds a `$` prefix and strips non-digit characters:
 
 ```tsx
-<MFTextInput mask="currency" placeholder="Amount" />
+<MfTextInput mask="currency" placeholder="Amount" />
 ```
 
-## Form Integration
+## MfForm Integration
 
-Inside a `<Form>`, `MFTextInput` automatically:
+Inside a `<MfForm>`, `MfTextInput` automatically:
 
 - Registers its ref for position-based navigation ordering
 - Calls `focusNext()` on submit when `returnKeyType` is `"next"`
 - Blurs the input on submit when `returnKeyType` is `"done"`
-- Tracks focus state in `MFActiveTextInputContext` for scroll-to-input
+- Tracks focus state in `MfActiveTextInputContext` for scroll-to-input
 
 ::: tip
 You must set `returnKeyType="next"` or `returnKeyType="done"` on each input to control the keyboard button. The form does not auto-assign return key types.

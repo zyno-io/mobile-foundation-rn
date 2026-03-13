@@ -1,27 +1,27 @@
 import { TextInput } from 'react-native';
 
-describe('Form + TextInput keyboard navigation', () => {
-    let Form: typeof import('../../src/components/Form');
+describe('MfForm + TextInput keyboard navigation', () => {
+    let MfForm: typeof import('../../src/components/MfForm');
 
     beforeEach(() => {
         jest.resetModules();
-        Form = require('../../src/components/Form');
+        MfForm = require('../../src/components/MfForm');
     });
 
     function setupForm() {
         const React = require('react');
         const renderer = require('react-test-renderer');
 
-        let context: ReturnType<typeof Form.useFormContext>;
+        let context: ReturnType<typeof MfForm.useMfFormContext>;
 
         function TestComponent() {
-            context = Form.useFormContext();
+            context = MfForm.useMfFormContext();
             return null;
         }
 
         renderer.act(() => {
             renderer.create(
-                React.createElement(Form.Form, null,
+                React.createElement(MfForm.MfForm, null,
                     React.createElement(TestComponent),
                 ),
             );

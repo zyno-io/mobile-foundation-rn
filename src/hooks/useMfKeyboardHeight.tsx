@@ -21,20 +21,20 @@ export const MfGlobalKeyboardProvider: React.FC<{ children: React.ReactNode }> =
 const MfKeyboardContext = createContext({
     appliedByAncestor: false
 });
-type IMFKeyboardHeightProvider = React.FC<{ children: React.ReactNode }>;
+type IMfKeyboardHeightProvider = React.FC<{ children: React.ReactNode }>;
 
 export const useMfKeyboardHeight = (
     enabled = true
 ): {
     keyboardOverlapsView: boolean;
     keyboardHeight: SharedValue<number>;
-    KeyboardHeightProvider: IMFKeyboardHeightProvider;
+    KeyboardHeightProvider: IMfKeyboardHeightProvider;
 } => {
     const context = useContext(MfKeyboardContext);
     const globalContext = useContext(MfGlobalKeyboardContext);
 
     const providerValue = useMemo(() => ({ appliedByAncestor: context.appliedByAncestor || enabled }), [context, enabled]);
-    const KeyboardHeightProvider: IMFKeyboardHeightProvider = useMemo(
+    const KeyboardHeightProvider: IMfKeyboardHeightProvider = useMemo(
         () => props => <MfKeyboardContext.Provider value={providerValue}>{props.children}</MfKeyboardContext.Provider>,
         [providerValue]
     );

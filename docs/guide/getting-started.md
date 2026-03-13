@@ -101,7 +101,7 @@ configureFoundation({
 Import your configure file **before** any other foundation modules in your app entry point. The configuration must be available before components that call `getFoundationConfig()` at module scope.
 :::
 
-### 3. Wrap your app with FoundationProvider
+### 3. Wrap your app with MfProvider
 
 ```tsx
 // App.tsx
@@ -110,7 +110,7 @@ import './src/configure'; // Must be first!
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import {
-    FoundationProvider,
+    MfProvider,
     useSetupFoundation,
 } from '@zyno-io/mobile-foundation-rn';
 
@@ -127,9 +127,9 @@ function AppContent() {
 
 export default function App() {
     return (
-        <FoundationProvider>
+        <MfProvider>
             <AppContent />
-        </FoundationProvider>
+        </MfProvider>
     );
 }
 ```
@@ -138,25 +138,25 @@ export default function App() {
 
 ```tsx
 import {
-    MFWrapperView,
-    MFScrollView,
-    MFText,
-    MFTextInput,
-    Form,
+    MfWrapperView,
+    MfScrollView,
+    MfText,
+    MfTextInput,
+    MfForm,
 } from '@zyno-io/mobile-foundation-rn';
 
 function MyScreen() {
     return (
-        <MFWrapperView>
-            <MFScrollView>
-                <Form>
-                    <MFText>Fill out the form below:</MFText>
-                    <MFTextInput placeholder="Name" returnKeyType="next" />
-                    <MFTextInput placeholder="Email" returnKeyType="next" />
-                    <MFTextInput placeholder="Phone" mask="phone" returnKeyType="done" />
-                </Form>
-            </MFScrollView>
-        </MFWrapperView>
+        <MfWrapperView>
+            <MfScrollView>
+                <MfForm>
+                    <MfText>Fill out the form below:</MfText>
+                    <MfTextInput placeholder="Name" returnKeyType="next" />
+                    <MfTextInput placeholder="Email" returnKeyType="next" />
+                    <MfTextInput placeholder="Phone" mask="phone" returnKeyType="done" />
+                </MfForm>
+            </MfScrollView>
+        </MfWrapperView>
     );
 }
 ```
@@ -167,10 +167,10 @@ Keyboard avoidance, safe area handling, and theming are handled automatically. F
 
 | Category | What you get |
 |----------|-------------|
-| **Layout** | `MFWrapperView`, `MFScrollView`, `MFFlatList` — keyboard-aware containers with safe area support |
-| **Inputs** | `MFTextInput`, `MFTextArea` — themed inputs with masks, icons, labels, and form integration |
-| **Form** | `Form` + `useNextTextInputRef` — Next/Done keyboard navigation based on input position |
-| **UI** | `MFText`, `MFButton`, `MFIcon`, `MFCheckbox`, `MFLoader` — themed primitives |
+| **Layout** | `MfWrapperView`, `MfScrollView`, `MfFlatList` — keyboard-aware containers with safe area support |
+| **Inputs** | `MfTextInput`, `MfTextArea` — themed inputs with masks, icons, labels, and form integration |
+| **Form** | `MfForm` + `useNextTextInputRef` — Next/Done keyboard navigation based on input position |
+| **UI** | `MfText`, `MfButton`, `MfIcon`, `MfCheckbox`, `MfLoader` — themed primitives |
 | **Theming** | `createStyles`, `useStyles`, `useColors` — light/dark scheme with override support |
 | **Services** | `AppMeta`, `createAppStorage`, `createLogger`, `SentryHelper`, `Updater` — production essentials |
 | **Hooks** | Keyboard height, safe area, app state, navigation focus, mount effects, and more |

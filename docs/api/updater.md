@@ -14,11 +14,11 @@ MobX observable string showing the current update status:
 
 ```tsx
 import { observer } from 'mobx-react-lite';
-import { Updater, MFText } from '@zyno-io/mobile-foundation-rn';
+import { Updater, MfText } from '@zyno-io/mobile-foundation-rn';
 
 const UpdateBanner = observer(() => {
     if (!Updater.statusText) return null;
-    return <MFText>{Updater.statusText}</MFText>;
+    return <MfText>{Updater.statusText}</MfText>;
 });
 ```
 

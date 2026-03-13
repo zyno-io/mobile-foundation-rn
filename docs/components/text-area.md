@@ -1,14 +1,14 @@
-# MFTextArea
+# MfTextArea
 
-Multi-line text input with form integration. A simpler component than `MFTextInput` — it does not support labels, icons, or masks.
+Multi-line text input with form integration. A simpler component than `MfTextInput` — it does not support labels, icons, or masks.
 
 ## Usage
 
 ```tsx
-import { MFTextArea } from '@zyno-io/mobile-foundation-rn';
+import { MfTextArea } from '@zyno-io/mobile-foundation-rn';
 
-<MFTextArea placeholder="Write your notes here..." />
-<MFTextArea placeholder="Description" disabled />
+<MfTextArea placeholder="Write your notes here..." />
+<MfTextArea placeholder="Description" disabled />
 ```
 
 ## Props
@@ -28,6 +28,6 @@ Defaults changed from `TextInput`:
 | `numberOfLines` | `2` |
 | `height` | `120` |
 
-## Form Integration
+## MfForm Integration
 
-Inside a `<Form>`, `MFTextArea` registers its ref for keyboard navigation. Set `returnKeyType="next"` or `returnKeyType="done"` to control the keyboard button behavior.
+Inside a `<MfForm>`, `MfTextArea` registers its ref for keyboard navigation. Set `returnKeyType="next"` or `returnKeyType="done"` to control the keyboard button behavior.

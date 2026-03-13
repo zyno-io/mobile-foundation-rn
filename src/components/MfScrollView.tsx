@@ -3,15 +3,15 @@ import { Insets, LayoutChangeEvent, ScrollView, ScrollViewProps, StyleSheet } fr
 
 import { hasHeightOrFlexProps } from '../helpers/layout';
 
-import { MFWrapperView, MFWrapperViewCommonProps } from './MFWrapperView';
-import { useMFActiveTextInputContext } from '../hooks/useMfActiveInput';
+import { MfWrapperView, MfWrapperViewCommonProps } from './MfWrapperView';
+import { useMfActiveTextInputContext } from '../hooks/useMfActiveInput';
 
-export interface MFScrollViewProps extends ScrollViewProps, MFWrapperViewCommonProps {
+export interface MfScrollViewProps extends ScrollViewProps, MfWrapperViewCommonProps {
     allowOverscroll?: boolean;
 }
 
-export const MFScrollView = React.forwardRef<ScrollView, MFScrollViewProps>((props, forwardedRef) => {
-    const activeTextInputCtx = useMFActiveTextInputContext();
+export const MfScrollView = React.forwardRef<ScrollView, MfScrollViewProps>((props, forwardedRef) => {
+    const activeTextInputCtx = useMfActiveTextInputContext();
 
     const scrollViewRef = useRef<ScrollView>(null);
     const [scrollY, setScrollY] = useState(0);
@@ -56,7 +56,7 @@ export const MFScrollView = React.forwardRef<ScrollView, MFScrollViewProps>((pro
     }, [props.contentContainerStyle, insetsPadding]);
 
     return (
-        <MFWrapperView
+        <MfWrapperView
             safeArea={safeArea}
             noKeyboardAvoiding={noKeyboardAvoiding}
             contentContainerStyle={scrollViewProps.contentContainerStyle ?? {}}
@@ -85,6 +85,6 @@ export const MFScrollView = React.forwardRef<ScrollView, MFScrollViewProps>((pro
                 style={style}
                 contentContainerStyle={contentContainerStyle}
             />
-        </MFWrapperView>
+        </MfWrapperView>
     );
 });

@@ -4,14 +4,14 @@ import { NativeSyntheticEvent, StyleProp, TextInput, TextInputProps, TextInputSu
 import { createStyles, useStyles } from '../helpers/styles';
 import { useNextTextInputRef } from '../hooks/useNextTextInputRef';
 
-import { setMFActiveTextInput, unsetMFActiveTextInput } from '../hooks/useMfActiveInput';
+import { setMfActiveTextInput, unsetMfActiveTextInput } from '../hooks/useMfActiveInput';
 
-interface MFTextAreaProps {
+interface MfTextAreaProps {
     disabled?: boolean;
     style?: StyleProp<ViewStyle>;
 }
 
-export const MFTextArea = React.forwardRef<TextInput, TextInputProps & MFTextAreaProps>((props, forwardedRef) => {
+export const MfTextArea = React.forwardRef<TextInput, TextInputProps & MfTextAreaProps>((props, forwardedRef) => {
     const localStyles = useStyles(styleGen);
     const ref = React.createRef<TextInput>();
     const { ref: nextTextInputRef, focusNext } = useNextTextInputRef();
@@ -42,11 +42,11 @@ export const MFTextArea = React.forwardRef<TextInput, TextInputProps & MFTextAre
             }}
             value={value}
             onFocus={e => {
-                if (ref.current) setMFActiveTextInput(ref.current);
+                if (ref.current) setMfActiveTextInput(ref.current);
                 onFocus?.(e);
             }}
             onBlur={e => {
-                if (ref.current) unsetMFActiveTextInput(ref.current);
+                if (ref.current) unsetMfActiveTextInput(ref.current);
                 onBlur?.(e);
             }}
             onChangeText={onChangeText}

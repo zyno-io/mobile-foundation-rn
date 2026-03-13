@@ -5,16 +5,16 @@ import { Animated, Easing, View, ViewProps } from 'react-native';
 import { getFoundationConfig } from '../config';
 import { createStyles, useColors, useStyles } from '../helpers/styles';
 
-interface MFLoaderProps {
+interface MfLoaderProps {
     color?: string;
     size?: number;
     background?: boolean;
 }
-interface MFLoaderViewProps extends ViewProps {
+interface MfLoaderViewProps extends ViewProps {
     color?: string;
     size?: number;
 }
-export const MFLoader: React.FC<MFLoaderProps> = ({ color, size, background }) => {
+export const MfLoader: React.FC<MfLoaderProps> = ({ color, size, background }) => {
     const styles = useStyles(styleGen);
     const colors = useColors();
     const spinValue = useRef(new Animated.Value(0)).current;
@@ -53,13 +53,13 @@ export const MFLoader: React.FC<MFLoaderProps> = ({ color, size, background }) =
     );
 };
 
-export const MFLoaderView: React.FC<MFLoaderViewProps> = props => {
+export const MfLoaderView: React.FC<MfLoaderViewProps> = props => {
     const styles = useStyles(styleGen);
     const { color, size, ...rest } = props;
 
     return (
         <View {...rest} style={[styles.loaderView, rest.style]}>
-            <MFLoader color={color} size={size} />
+            <MfLoader color={color} size={size} />
         </View>
     );
 };

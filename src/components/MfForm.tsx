@@ -13,13 +13,13 @@ interface FormContextValue {
     getNextInput: (currentRef: TextInput) => TextInput | null;
 }
 
-export const FormContext = createContext<FormContextValue | null>(null);
+export const MfFormContext = createContext<FormContextValue | null>(null);
 
-interface FormProps {
+interface MfFormProps {
     children: React.ReactNode;
 }
 
-export function Form({ children }: FormProps) {
+export function MfForm({ children }: MfFormProps) {
     const inputsRef = useRef<Map<TextInput, TextInputInfo>>(new Map());
 
     const registerInput = (ref: TextInput) => {
@@ -66,11 +66,11 @@ export function Form({ children }: FormProps) {
         getNextInput
     };
 
-    return <FormContext.Provider value={contextValue}>{children}</FormContext.Provider>;
+    return <MfFormContext.Provider value={contextValue}>{children}</MfFormContext.Provider>;
 }
 
-export function useFormContext() {
-    const context = useContext(FormContext);
+export function useMfFormContext() {
+    const context = useContext(MfFormContext);
     if (!context) {
         return {
             registerInput: () => {},

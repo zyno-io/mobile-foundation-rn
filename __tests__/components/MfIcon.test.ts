@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('MFIcon', () => {
+describe('MfIcon', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -12,12 +12,12 @@ describe('MFIcon', () => {
     it('renders with theme default color', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFIcon } = require('../../src/components/MFIcon');
+        const { MfIcon } = require('../../src/components/MfIcon');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFIcon, { icon: 'star' }),
+                React.createElement(MfIcon, { icon: 'star' }),
             );
         });
 
@@ -29,12 +29,12 @@ describe('MFIcon', () => {
     it('uses custom color prop when provided', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFIcon } = require('../../src/components/MFIcon');
+        const { MfIcon } = require('../../src/components/MfIcon');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFIcon, { icon: 'star', color: 'red' }),
+                React.createElement(MfIcon, { icon: 'star', color: 'red' }),
             );
         });
 
@@ -45,12 +45,12 @@ describe('MFIcon', () => {
     it('uses custom size prop when provided', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFIcon } = require('../../src/components/MFIcon');
+        const { MfIcon } = require('../../src/components/MfIcon');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFIcon, { icon: 'star', size: 32 }),
+                React.createElement(MfIcon, { icon: 'star', size: 32 }),
             );
         });
 
@@ -61,12 +61,12 @@ describe('MFIcon', () => {
     it('defaults to size 16', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFIcon } = require('../../src/components/MFIcon');
+        const { MfIcon } = require('../../src/components/MfIcon');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFIcon, { icon: 'star' }),
+                React.createElement(MfIcon, { icon: 'star' }),
             );
         });
 

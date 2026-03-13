@@ -15,20 +15,20 @@ import { formatCurrency, formatPhone } from '../helpers/formatting';
 import { createStyles, useStyles } from '../helpers/styles';
 import { useNextTextInputRef } from '../hooks/useNextTextInputRef';
 
-import { MFIcon, MFIconProps } from './MFIcon';
-import { MFText } from './MFText';
-import { setMFActiveTextInput, unsetMFActiveTextInput } from '../hooks/useMfActiveInput';
+import { MfIcon, MfIconProps } from './MfIcon';
+import { MfText } from './MfText';
+import { setMfActiveTextInput, unsetMfActiveTextInput } from '../hooks/useMfActiveInput';
 
-interface MFTextInputProps {
+interface MfTextInputProps {
     mask?: 'phone' | 'currency';
     disabled?: boolean;
-    icon?: MFIconProps['icon'];
+    icon?: MfIconProps['icon'];
     label?: string;
     wrapperStyle?: StyleProp<ViewStyle>;
     inputWrapperStyle?: StyleProp<ViewStyle>;
 }
 
-export const MFTextInput = React.forwardRef<TextInput, TextInputProps & MFTextInputProps>((props, forwardedRef) => {
+export const MfTextInput = React.forwardRef<TextInput, TextInputProps & MfTextInputProps>((props, forwardedRef) => {
     const {
         mask,
         onFocus,
@@ -54,14 +54,14 @@ export const MFTextInput = React.forwardRef<TextInput, TextInputProps & MFTextIn
     const [isFocused, setIsFocused] = useState(false);
 
     const internalOnFocus = (e: FocusEvent) => {
-        if (ref.current) setMFActiveTextInput(ref.current);
+        if (ref.current) setMfActiveTextInput(ref.current);
         if (value) setSelection({ start: 0, end: value.length });
         setIsFocused(true);
         onFocus?.(e);
     };
 
     const internalOnBlur = (e: BlurEvent) => {
-        if (ref.current) unsetMFActiveTextInput(ref.current);
+        if (ref.current) unsetMfActiveTextInput(ref.current);
         setIsFocused(false);
         onBlur?.(e);
     };
@@ -98,7 +98,7 @@ export const MFTextInput = React.forwardRef<TextInput, TextInputProps & MFTextIn
 
     return (
         <View style={[styles.wrapper, wrapperStyle]}>
-            {label && <MFText style={styles.label}>{label}</MFText>}
+            {label && <MfText style={styles.label}>{label}</MfText>}
             <View style={[styles.inputWrapper, inputWrapperStyle]}>
                 <TextInput
                     ref={node => {
@@ -122,7 +122,7 @@ export const MFTextInput = React.forwardRef<TextInput, TextInputProps & MFTextIn
                     maxLength={nativeProps.maxLength}
                     {...nativeProps}
                 />
-                {icon && <MFIcon size={16} color={styles.icon.color} icon={icon} style={styles.icon} />}
+                {icon && <MfIcon size={16} color={styles.icon.color} icon={icon} style={styles.icon} />}
             </View>
         </View>
     );

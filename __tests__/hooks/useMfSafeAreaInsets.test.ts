@@ -1,21 +1,21 @@
-// Test the logic of useMFSafeAreaInsets by calling the hook in a minimal React context
+// Test the logic of useMfSafeAreaInsets by calling the hook in a minimal React context
 import React from 'react';
 
-// We need to test useMFSafeAreaInsets which uses useSafeAreaInsets (mocked)
+// We need to test useMfSafeAreaInsets which uses useSafeAreaInsets (mocked)
 // and returns filtered insets. We'll test the logic directly.
-describe('useMFSafeAreaInsets', () => {
-    let useMFSafeAreaInsets: typeof import('../../src/hooks/useMfSafeAreaInsets').useMFSafeAreaInsets;
+describe('useMfSafeAreaInsets', () => {
+    let useMfSafeAreaInsets: typeof import('../../src/hooks/useMfSafeAreaInsets').useMfSafeAreaInsets;
 
     beforeEach(() => {
         jest.resetModules();
-        useMFSafeAreaInsets = require('../../src/hooks/useMfSafeAreaInsets').useMFSafeAreaInsets;
+        useMfSafeAreaInsets = require('../../src/hooks/useMfSafeAreaInsets').useMfSafeAreaInsets;
     });
 
     // Helper to call hook in a React context
-    function callHook(applyInsets: Parameters<typeof useMFSafeAreaInsets>[0]) {
-        let result: ReturnType<typeof useMFSafeAreaInsets>;
+    function callHook(applyInsets: Parameters<typeof useMfSafeAreaInsets>[0]) {
+        let result: ReturnType<typeof useMfSafeAreaInsets>;
         function TestComponent() {
-            result = useMFSafeAreaInsets(applyInsets);
+            result = useMfSafeAreaInsets(applyInsets);
             return null;
         }
 

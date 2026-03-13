@@ -1,14 +1,14 @@
-# MFText
+# MfText
 
 Theme-aware text component. Uses the current color scheme's `text` color and the Inter font.
 
 ## Usage
 
 ```tsx
-import { MFText } from '@zyno-io/mobile-foundation-rn';
+import { MfText } from '@zyno-io/mobile-foundation-rn';
 
-<MFText>Hello, world</MFText>
-<MFText style={{ fontSize: 24, fontWeight: 'bold' }}>Title</MFText>
+<MfText>Hello, world</MfText>
+<MfText style={{ fontSize: 24, fontWeight: 'bold' }}>Title</MfText>
 ```
 
 ## Props
@@ -22,14 +22,14 @@ Extends all standard React Native `TextProps`. No additional props.
 - Uses the Inter font family
 - Forwards refs
 
-## MFStatusTextView
+## MfStatusTextView
 
 Centered text view for status messages (loading states, empty states, etc.):
 
 ```tsx
-import { MFStatusTextView } from '@zyno-io/mobile-foundation-rn';
+import { MfStatusTextView } from '@zyno-io/mobile-foundation-rn';
 
-<MFStatusTextView>No results found</MFStatusTextView>
+<MfStatusTextView>No results found</MfStatusTextView>
 ```
 
 Renders centered within its container with padding and uses `secondaryText` color.

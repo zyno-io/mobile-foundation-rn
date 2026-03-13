@@ -40,5 +40,5 @@ export default SentryHelper.wrap(App);
 ```
 
 ::: tip
-`FoundationProvider` already wraps the app with Sentry's error boundary. You typically only need `SentryHelper.wrap` if you're not using `FoundationProvider`.
+`MfProvider` already wraps the app with Sentry's error boundary. You typically only need `SentryHelper.wrap` if you're not using `MfProvider`.
 :::

@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('MFText', () => {
+describe('MfText', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -12,11 +12,11 @@ describe('MFText', () => {
     it('renders with text color from theme', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFText } = require('../../src/components/MFText');
+        const { MfText } = require('../../src/components/MfText');
 
         let tree: any;
         renderer.act(() => {
-            tree = renderer.create(React.createElement(MFText, null, 'Hello'));
+            tree = renderer.create(React.createElement(MfText, null, 'Hello'));
         });
 
         const json = tree.toJSON();
@@ -31,11 +31,11 @@ describe('MFText', () => {
     it('applies maxFontSizeMultiplier of 1.5', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFText } = require('../../src/components/MFText');
+        const { MfText } = require('../../src/components/MfText');
 
         let tree: any;
         renderer.act(() => {
-            tree = renderer.create(React.createElement(MFText, null, 'Test'));
+            tree = renderer.create(React.createElement(MfText, null, 'Test'));
         });
 
         const json = tree.toJSON();
@@ -45,12 +45,12 @@ describe('MFText', () => {
     it('merges custom style with defaults', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFText } = require('../../src/components/MFText');
+        const { MfText } = require('../../src/components/MfText');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFText, { style: { fontSize: 24 } }, 'Big'),
+                React.createElement(MfText, { style: { fontSize: 24 } }, 'Big'),
             );
         });
 
@@ -60,15 +60,15 @@ describe('MFText', () => {
         expect(customStyle).toBeDefined();
     });
 
-    it('MFStatusTextView centers content', () => {
+    it('MfStatusTextView centers content', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFStatusTextView } = require('../../src/components/MFText');
+        const { MfStatusTextView } = require('../../src/components/MfText');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFStatusTextView, null, 'Status'),
+                React.createElement(MfStatusTextView, null, 'Status'),
             );
         });
 

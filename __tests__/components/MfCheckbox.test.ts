@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('MFButton', () => {
+describe('MfCheckbox', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -37,33 +37,35 @@ describe('MFButton', () => {
         return results;
     }
 
-    it('renders text label', () => {
+    it('renders label text', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFButton } = require('../../src/components/MFButton');
+        const { MfCheckbox } = require('../../src/components/MfCheckbox');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFButton, { text: 'Submit' }),
+                React.createElement(MfCheckbox, { label: 'Accept terms' }),
             );
         });
 
         const json = tree.toJSON();
         const texts = findAllByType(json, 'Text');
-        const label = texts.find((t: any) => t.children?.includes('Submit'));
-        expect(label).toBeDefined();
+        const labelText = texts.find((t: any) =>
+            t.children?.includes('Accept terms'),
+        );
+        expect(labelText).toBeDefined();
     });
 
-    it('renders icon when icon prop provided', () => {
+    it('shows check icon when value is true', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFButton } = require('../../src/components/MFButton');
+        const { MfCheckbox } = require('../../src/components/MfCheckbox');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFButton, { icon: 'plus', text: 'Add' }),
+                React.createElement(MfCheckbox, { value: true, label: 'Check' }),
             );
         });
 
@@ -72,65 +74,48 @@ describe('MFButton', () => {
         expect(icon).not.toBeNull();
     });
 
-    it('renders children instead of text when provided', () => {
+    it('hides check icon when value is false', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFButton } = require('../../src/components/MFButton');
+        const { MfCheckbox } = require('../../src/components/MfCheckbox');
+
+        let tree: any;
+        renderer.act(() => {
+            tree = renderer.create(
+                React.createElement(MfCheckbox, { value: false, label: 'Check' }),
+            );
+        });
+
+        const json = tree.toJSON();
+        const icon = findByType(json, 'FontAwesomeIcon');
+        expect(icon).toBeNull();
+    });
+
+    it('renders children with margin wrapper', () => {
+        const React = require('react');
+        const renderer = require('react-test-renderer');
+        const { MfCheckbox } = require('../../src/components/MfCheckbox');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
                 React.createElement(
-                    MFButton,
-                    { text: 'Ignored' },
-                    React.createElement('View', { testID: 'custom-child' }),
+                    MfCheckbox,
+                    { label: 'Parent' },
+                    React.createElement('View', { testID: 'child' }),
                 ),
             );
         });
 
         const json = tree.toJSON();
-        // text should not render when children present
-        const texts = findAllByType(json, 'Text');
-        const label = texts.find((t: any) => t.children?.includes('Ignored'));
-        expect(label).toBeUndefined();
-    });
-
-    it('applies primary button styles when primary prop is true', () => {
-        const React = require('react');
-        const renderer = require('react-test-renderer');
-        const { MFButton } = require('../../src/components/MFButton');
-
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MFButton, { primary: true, text: 'Primary' }),
-            );
+        // Find the children wrapper view with marginLeft
+        const views = findAllByType(json, 'View');
+        const childWrapper = views.find((v: any) => {
+            const style = v.props?.style;
+            if (!style) return false;
+            const flatStyle = [].concat(...[style].flat(Infinity));
+            return flatStyle.some((s: any) => s?.marginLeft === 32);
         });
-
-        const json = tree.toJSON();
-        // The button style should contain primaryButton background
-        const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
-        const hasPrimaryBg = flatStyle.some(
-            (s: any) => s?.backgroundColor === '#007AFF',
-        );
-        expect(hasPrimaryBg).toBe(true);
-    });
-
-    it('applies disabled opacity when disabled', () => {
-        const React = require('react');
-        const renderer = require('react-test-renderer');
-        const { MFButton } = require('../../src/components/MFButton');
-
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MFButton, { disabled: true, text: 'Disabled' }),
-            );
-        });
-
-        const json = tree.toJSON();
-        const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
-        const hasDisabled = flatStyle.some((s: any) => s?.opacity === 0.5);
-        expect(hasDisabled).toBe(true);
+        expect(childWrapper).toBeDefined();
     });
 });

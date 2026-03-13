@@ -31,8 +31,8 @@ function MyComponent() {
 
 ## Nested Contexts
 
-When `MFWrapperView` handles keyboard avoidance, it wraps children in `KeyboardHeightProvider` which reports the keyboard as already handled. This prevents child components from double-applying the keyboard offset.
+When `MfWrapperView` handles keyboard avoidance, it wraps children in `KeyboardHeightProvider` which reports the keyboard as already handled. This prevents child components from double-applying the keyboard offset.
 
 ## Global Context
 
-`MfGlobalKeyboardProvider` and `MfGlobalKeyboardContext` provide app-wide keyboard state. These are set up by `FoundationProvider` — you don't need to add them manually.
+`MfGlobalKeyboardProvider` and `MfGlobalKeyboardContext` provide app-wide keyboard state. These are set up by `MfProvider` — you don't need to add them manually.

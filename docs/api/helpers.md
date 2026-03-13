@@ -158,21 +158,21 @@ const uri = await getCacheUriForBlob('photo.jpg', imageBlob);
 
 ## Active Text Input
 
-These exports manage which text input is currently focused (used internally by `MFScrollView` for scroll-to-input):
+These exports manage which text input is currently focused (used internally by `MfScrollView` for scroll-to-input):
 
 ```ts
 import {
-    MFActiveTextInputContext,
-    setMFActiveTextInput,
-    unsetMFActiveTextInput,
-    useMFActiveTextInputContext,
+    MfActiveTextInputContext,
+    setMfActiveTextInput,
+    unsetMfActiveTextInput,
+    useMfActiveTextInputContext,
 } from '@zyno-io/mobile-foundation-rn';
 ```
 
-- `MFActiveTextInputContext` — React context holding `{ input: TextInput | null }`
-- `setMFActiveTextInput(ref)` — set the currently active input
-- `unsetMFActiveTextInput(ref)` — clear the active input (only if it matches `ref`)
-- `useMFActiveTextInputContext()` — hook to access the context
+- `MfActiveTextInputContext` — React context holding `{ input: TextInput | null }`
+- `setMfActiveTextInput(ref)` — set the currently active input
+- `unsetMfActiveTextInput(ref)` — clear the active input (only if it matches `ref`)
+- `useMfActiveTextInputContext()` — hook to access the context
 
 ## Deep Linking
 

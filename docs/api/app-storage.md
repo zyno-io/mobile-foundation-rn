@@ -23,7 +23,7 @@ import { observer } from 'mobx-react-lite';
 import storage from './storage';
 
 const ProfileScreen = observer(() => {
-    return <MFText>Theme: {storage.preferredTheme}</MFText>;
+    return <MfText>Theme: {storage.preferredTheme}</MfText>;
 });
 
 // Set a value — auto-persisted

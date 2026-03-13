@@ -97,7 +97,7 @@ function MyComponent() {
         await api.submit(data);
     });
 
-    return <MFButton text="Submit" onPress={() => submitForm(formData)} />;
+    return <MfButton text="Submit" onPress={() => submitForm(formData)} />;
 }
 ```
 

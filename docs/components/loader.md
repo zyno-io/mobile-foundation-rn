@@ -1,15 +1,15 @@
-# MFLoader
+# MfLoader
 
 Spinning loader animation using the configured spinner icon.
 
-## MFLoader
+## MfLoader
 
 ```tsx
-import { MFLoader } from '@zyno-io/mobile-foundation-rn';
+import { MfLoader } from '@zyno-io/mobile-foundation-rn';
 
-<MFLoader />
-<MFLoader size={32} color="#FF0000" />
-<MFLoader background />
+<MfLoader />
+<MfLoader size={32} color="#FF0000" />
+<MfLoader background />
 ```
 
 ### Props
@@ -20,29 +20,29 @@ import { MFLoader } from '@zyno-io/mobile-foundation-rn';
 | `size` | `number` | `64` | Spinner size |
 | `background` | `boolean` | `false` | Show semi-transparent background circle |
 
-## MFLoaderView
+## MfLoaderView
 
 Loader centered in a flex container:
 
 ```tsx
-import { MFLoaderView } from '@zyno-io/mobile-foundation-rn';
+import { MfLoaderView } from '@zyno-io/mobile-foundation-rn';
 
-<MFLoaderView />
+<MfLoaderView />
 ```
 
 ### Props
 
-Extends `ViewProps` plus `color` and `size` from `MFLoader`.
+Extends `ViewProps` plus `color` and `size` from `MfLoader`.
 
-## MFLoaderOverlay
+## MfLoaderOverlay
 
 Manual overlay with a loader:
 
 ```tsx
-import { MFLoaderOverlay } from '@zyno-io/mobile-foundation-rn';
+import { MfLoaderOverlay } from '@zyno-io/mobile-foundation-rn';
 
-{isLoading && <MFLoaderOverlay />}
-{isLoading && <MFLoaderOverlay solo />}  // With dark background
+{isLoading && <MfLoaderOverlay />}
+{isLoading && <MfLoaderOverlay solo />}  // With dark background
 ```
 
 ### Props
@@ -53,7 +53,7 @@ import { MFLoaderOverlay } from '@zyno-io/mobile-foundation-rn';
 
 ## GlobalLoaderOverlay
 
-Automatic overlay controlled by `LoaderState.loaderCount`. Rendered by `FoundationProvider` — you don't need to place this manually.
+Automatic overlay controlled by `LoaderState.loaderCount`. Rendered by `MfProvider` — you don't need to place this manually.
 
 Shows when any `useWaitTask` is in progress. See [useWaitTask](../hooks/wait-task).
 

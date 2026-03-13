@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export type Inset = keyof Insets;
 
-export const useMFSafeAreaInsets = (applyInsets: boolean | Inset[] | Inset = true): Required<Insets> => {
+export const useMfSafeAreaInsets = (applyInsets: boolean | Inset[] | Inset = true): Required<Insets> => {
     const rawInsets = useSafeAreaInsets();
 
     const desiredInsets: Inset[] = useMemo(() => {

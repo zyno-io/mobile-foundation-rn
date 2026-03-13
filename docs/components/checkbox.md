@@ -1,24 +1,24 @@
-# MFCheckbox
+# MfCheckbox
 
 Checkbox with optional label and nested content. Uses theme colors for the surface and text, with hardcoded black/white for the checkbox indicator itself.
 
 ## Usage
 
 ```tsx
-import { MFCheckbox } from '@zyno-io/mobile-foundation-rn';
+import { MfCheckbox } from '@zyno-io/mobile-foundation-rn';
 
 const [checked, setChecked] = useState(false);
 
 // Basic
-<MFCheckbox value={checked} onPress={() => setChecked(!checked)} label="I agree to the terms" />
+<MfCheckbox value={checked} onPress={() => setChecked(!checked)} label="I agree to the terms" />
 
 // With nested content
-<MFCheckbox value={checked} onPress={() => setChecked(!checked)} label="Enable notifications">
-    <MFText>You'll receive push notifications for new messages.</MFText>
-</MFCheckbox>
+<MfCheckbox value={checked} onPress={() => setChecked(!checked)} label="Enable notifications">
+    <MfText>You'll receive push notifications for new messages.</MfText>
+</MfCheckbox>
 
 // Disabled
-<MFCheckbox value={true} disabled label="Required" />
+<MfCheckbox value={true} disabled label="Required" />
 ```
 
 ## Props

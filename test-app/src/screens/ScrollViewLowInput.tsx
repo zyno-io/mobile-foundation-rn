@@ -1,19 +1,19 @@
 import React from 'react';
 import { View } from 'react-native';
-import { MFWrapperView, MFScrollView, MFText, MFTextInput } from '@zyno-io/mobile-foundation-rn';
+import { MfWrapperView, MfScrollView, MfText, MfTextInput } from '@zyno-io/mobile-foundation-rn';
 
 export const ScrollViewLowInputScreen: React.FC = () => (
-    <MFWrapperView>
-        <MFScrollView testID="scroll-view">
-            <MFText style={{ padding: 12, fontSize: 12, color: '#888' }} testID="screen-label">3. ScrollView — Low Input</MFText>
+    <MfWrapperView>
+        <MfScrollView testID="scroll-view">
+            <MfText style={{ padding: 12, fontSize: 12, color: '#888' }} testID="screen-label">3. ScrollView — Low Input</MfText>
             <View style={{ height: 200 }}>
-                <MFText>Spacer</MFText>
+                <MfText>Spacer</MfText>
             </View>
-            <MFTextInput placeholder="Input 1" testID="input-1" />
+            <MfTextInput placeholder="Input 1" testID="input-1" />
             <View style={{ height: 400 }}>
-                <MFText>Spacer</MFText>
+                <MfText>Spacer</MfText>
             </View>
-            <MFTextInput placeholder="Low input" testID="low-input" />
-        </MFScrollView>
-    </MFWrapperView>
+            <MfTextInput placeholder="Low input" testID="low-input" />
+        </MfScrollView>
+    </MfWrapperView>
 );

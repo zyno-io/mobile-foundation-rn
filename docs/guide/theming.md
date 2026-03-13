@@ -134,14 +134,14 @@ function AlwaysDarkSection({ children }) {
 
 `useColorSchemeOverride()` returns the current override value (`null` means follow system).
 
-## FoundationProvider `colorScheme` Prop
+## MfProvider `colorScheme` Prop
 
 Override the color scheme used for React Navigation theming:
 
 ```tsx
-<FoundationProvider colorScheme="dark">
+<MfProvider colorScheme="dark">
     <AppContent />
-</FoundationProvider>
+</MfProvider>
 ```
 
 ::: warning

@@ -88,7 +88,7 @@ AppStorage.deviceToken = 'abc123'; // automatically saved
 import 'react-native-reanimated';
 import '@/foundation/setup';
 
-import { FoundationProvider, useSetupFoundation } from '@zyno-io/mobile-foundation-rn';
+import { MfProvider, useSetupFoundation } from '@zyno-io/mobile-foundation-rn';
 import { AppNavigator } from './AppNavigator';
 
 function RootLayout() {
@@ -96,9 +96,9 @@ function RootLayout() {
     if (!isReady) return null;
 
     return (
-        <FoundationProvider>
+        <MfProvider>
             <AppNavigator />
-        </FoundationProvider>
+        </MfProvider>
     );
 }
 
@@ -139,7 +139,7 @@ Pass an optional `appIsReady` callback for app-specific conditions:
 const isReady = useSetupFoundation(() => myDataIsLoaded);
 ```
 
-### `<FoundationProvider>`
+### `<MfProvider>`
 
 Wraps your app with all required providers:
 - `ActionSheetProvider`
@@ -200,18 +200,18 @@ Updater.setUpdateDeferralListener(() => isOnActiveCall);
 
 | Component | Description |
 |-----------|-------------|
-| `MFButton` | Themed button with icon support and loading state |
-| `MFCheckbox` | Checkbox using configured check icon |
-| `MFFlatList` | Themed FlatList with pull-to-refresh |
-| `MFIcon` | FontAwesome icon wrapper |
-| `MFLoader` / `MFLoaderView` | Loading spinner using configured spinner icon |
-| `MFLoaderOverlay` / `GlobalLoaderOverlay` | Full-screen loading overlay |
-| `MFScrollView` | Themed ScrollView |
-| `MFText` / `MFStatusTextView` | Themed text components |
-| `MFTextArea` | Multi-line text input |
-| `MFTextInput` | Single-line text input |
-| `MFWrapperView` | Safe-area-aware wrapper view |
-| `Form` / `FormContext` | Form context provider |
+| `MfButton` | Themed button with icon support and loading state |
+| `MfCheckbox` | Checkbox using configured check icon |
+| `MfFlatList` | Themed FlatList with pull-to-refresh |
+| `MfIcon` | FontAwesome icon wrapper |
+| `MfLoader` / `MfLoaderView` | Loading spinner using configured spinner icon |
+| `MfLoaderOverlay` / `GlobalLoaderOverlay` | Full-screen loading overlay |
+| `MfScrollView` | Themed ScrollView |
+| `MfText` / `MfStatusTextView` | Themed text components |
+| `MfTextArea` | Multi-line text input |
+| `MfTextInput` | Single-line text input |
+| `MfWrapperView` | Safe-area-aware wrapper view |
+| `MfForm` / `MfFormContext` | Form context provider |
 
 ## Hooks
 
@@ -231,7 +231,7 @@ Updater.setUpdateDeferralListener(() => isOnActiveCall);
 | `useNavigationWithOptions(opts)` | Sets navigation options |
 | `useNextTextInputRef()` | Auto-focus next input on submit |
 | `useMfKeyboardHeight()` | Current keyboard height |
-| `useMFSafeAreaInsets()` | Safe area insets with overrides |
+| `useMfSafeAreaInsets()` | Safe area insets with overrides |
 | `getLinkingUrl()` | Get the current linking URL synchronously |
 
 ## Helpers

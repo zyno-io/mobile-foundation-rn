@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('MFLoaderOverlay', () => {
+describe('MfLoaderOverlay', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -12,7 +12,7 @@ describe('MFLoaderOverlay', () => {
     it('GlobalLoaderOverlay returns null when loaderCount is 0', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { GlobalLoaderOverlay } = require('../../src/components/MFLoaderOverlay');
+        const { GlobalLoaderOverlay } = require('../../src/components/MfLoaderOverlay');
         const { LoaderState } = require('../../src/helpers/observable');
         LoaderState.loaderCount = 0;
 
@@ -27,7 +27,7 @@ describe('MFLoaderOverlay', () => {
     it('GlobalLoaderOverlay renders when loaderCount > 0', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { GlobalLoaderOverlay } = require('../../src/components/MFLoaderOverlay');
+        const { GlobalLoaderOverlay } = require('../../src/components/MfLoaderOverlay');
         const { LoaderState } = require('../../src/helpers/observable');
         LoaderState.loaderCount = 1;
 
@@ -41,14 +41,14 @@ describe('MFLoaderOverlay', () => {
         LoaderState.loaderCount = 0;
     });
 
-    it('MFLoaderOverlay has absolute positioning for full screen overlay', () => {
+    it('MfLoaderOverlay has absolute positioning for full screen overlay', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFLoaderOverlay } = require('../../src/components/MFLoaderOverlay');
+        const { MfLoaderOverlay } = require('../../src/components/MfLoaderOverlay');
 
         let tree: any;
         renderer.act(() => {
-            tree = renderer.create(React.createElement(MFLoaderOverlay));
+            tree = renderer.create(React.createElement(MfLoaderOverlay));
         });
 
         const json = tree.toJSON();

@@ -8,7 +8,7 @@ import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator, StackNavigationProp } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
-    FoundationProvider,
+    MfProvider,
     useSetupFoundation,
 } from '@zyno-io/mobile-foundation-rn';
 
@@ -131,9 +131,9 @@ function AppContent() {
 
 export default function App() {
     return (
-        <FoundationProvider>
+        <MfProvider>
             <AppContent />
-        </FoundationProvider>
+        </MfProvider>
     );
 }
 

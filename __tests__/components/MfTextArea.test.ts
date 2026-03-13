@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('MFTextArea', () => {
+describe('MfTextArea', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -12,11 +12,11 @@ describe('MFTextArea', () => {
     it('renders as multiline', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextArea } = require('../../src/components/MFTextArea');
+        const { MfTextArea } = require('../../src/components/MfTextArea');
 
         let tree: any;
         renderer.act(() => {
-            tree = renderer.create(React.createElement(MFTextArea));
+            tree = renderer.create(React.createElement(MfTextArea));
         });
 
         const json = tree.toJSON();
@@ -26,12 +26,12 @@ describe('MFTextArea', () => {
     it('sets editable false when disabled', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextArea } = require('../../src/components/MFTextArea');
+        const { MfTextArea } = require('../../src/components/MfTextArea');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextArea, { disabled: true }),
+                React.createElement(MfTextArea, { disabled: true }),
             );
         });
 
@@ -42,12 +42,12 @@ describe('MFTextArea', () => {
     it('applies disabled opacity style when disabled', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextArea } = require('../../src/components/MFTextArea');
+        const { MfTextArea } = require('../../src/components/MfTextArea');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextArea, { disabled: true }),
+                React.createElement(MfTextArea, { disabled: true }),
             );
         });
 
@@ -60,12 +60,12 @@ describe('MFTextArea', () => {
     it('renders placeholder text', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFTextArea } = require('../../src/components/MFTextArea');
+        const { MfTextArea } = require('../../src/components/MfTextArea');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFTextArea, { placeholder: 'Write here...' }),
+                React.createElement(MfTextArea, { placeholder: 'Write here...' }),
             );
         });
 

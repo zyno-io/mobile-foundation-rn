@@ -1,23 +1,23 @@
-# MFFlatList
+# MfFlatList
 
 Keyboard-aware FlatList with safe area support. Drop-in replacement for React Native's `FlatList` with keyboard avoidance.
 
 ## Usage
 
 ```tsx
-import { MFWrapperView, MFFlatList, MFText, MFTextInput } from '@zyno-io/mobile-foundation-rn';
+import { MfWrapperView, MfFlatList, MfText, MfTextInput } from '@zyno-io/mobile-foundation-rn';
 
 function ChatScreen({ messages }) {
     return (
-        <MFWrapperView>
-            <MFFlatList
+        <MfWrapperView>
+            <MfFlatList
                 data={messages}
-                renderItem={({ item }) => <MFText>{item.text}</MFText>}
+                renderItem={({ item }) => <MfText>{item.text}</MfText>}
                 inverted
                 style={{ flex: 1 }}
             />
-            <MFTextInput placeholder="Type a message" />
-        </MFWrapperView>
+            <MfTextInput placeholder="Type a message" />
+        </MfWrapperView>
     );
 }
 ```

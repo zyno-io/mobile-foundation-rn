@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('FoundationProvider composition', () => {
+describe('MfProvider composition', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -38,7 +38,7 @@ describe('FoundationProvider composition', () => {
         const configModule = require('../../src/config');
         configModule.configureFoundation(createMockConfig());
 
-        const { FoundationProvider } = require('../../src/components/FoundationProvider');
+        const { MfProvider } = require('../../src/components/MfProvider');
         const React = require('react');
         const renderer = require('react-test-renderer');
 
@@ -46,7 +46,7 @@ describe('FoundationProvider composition', () => {
         renderer.act(() => {
             tree = renderer.create(
                 React.createElement(
-                    FoundationProvider,
+                    MfProvider,
                     null,
                     React.createElement('View', { testID: 'child-view' }),
                 ),
@@ -66,14 +66,14 @@ describe('FoundationProvider composition', () => {
             }),
         );
 
-        const { FoundationProvider } = require('../../src/components/FoundationProvider');
+        const { MfProvider } = require('../../src/components/MfProvider');
         const { StatusBar } = require('react-native');
         const React = require('react');
         const renderer = require('react-test-renderer');
 
         renderer.act(() => {
             renderer.create(
-                React.createElement(FoundationProvider, null, null),
+                React.createElement(MfProvider, null, null),
             );
         });
 
@@ -87,7 +87,7 @@ describe('FoundationProvider composition', () => {
         const configModule = require('../../src/config');
         configModule.configureFoundation(createMockConfig());
 
-        const { FoundationProvider } = require('../../src/components/FoundationProvider');
+        const { MfProvider } = require('../../src/components/MfProvider');
         const React = require('react');
         const renderer = require('react-test-renderer');
 
@@ -95,7 +95,7 @@ describe('FoundationProvider composition', () => {
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(FoundationProvider, null, null),
+                React.createElement(MfProvider, null, null),
             );
         });
 
@@ -115,13 +115,13 @@ describe('FoundationProvider composition', () => {
             Promise.resolve('myapp://test'),
         );
 
-        const { FoundationProvider } = require('../../src/components/FoundationProvider');
+        const { MfProvider } = require('../../src/components/MfProvider');
         const React = require('react');
         const renderer = require('react-test-renderer');
 
         renderer.act(() => {
             renderer.create(
-                React.createElement(FoundationProvider, null, null),
+                React.createElement(MfProvider, null, null),
             );
         });
 

@@ -11,15 +11,15 @@ import { getFoundationConfig } from '../config';
 import { useColors } from '../helpers/styles';
 import { getLinkingUrl } from '../hooks/useLinkingUrl';
 
-import { GlobalLoaderOverlay } from './MFLoaderOverlay';
+import { GlobalLoaderOverlay } from './MfLoaderOverlay';
 import { MfGlobalKeyboardProvider } from '../hooks/useMfKeyboardHeight';
 
-interface FoundationProviderProps {
+interface MfProviderProps {
     colorScheme?: ColorSchemeName;
     children: React.ReactNode;
 }
 
-const FoundationProviderInner: React.FC<FoundationProviderProps> = ({ colorScheme: colorSchemeProp, children }) => {
+const MfProviderInner: React.FC<MfProviderProps> = ({ colorScheme: colorSchemeProp, children }) => {
     const systemColorScheme = useColorScheme();
     const colorScheme = colorSchemeProp ?? systemColorScheme;
 
@@ -44,7 +44,7 @@ const FoundationProviderInner: React.FC<FoundationProviderProps> = ({ colorSchem
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const FoundationProvider = Sentry.wrap(FoundationProviderInner as any) as unknown as React.FC<FoundationProviderProps>;
+export const MfProvider = Sentry.wrap(MfProviderInner as any) as unknown as React.FC<MfProviderProps>;
 
 const FoundationStatusBar: React.FC = () => {
     const config = getFoundationConfig();

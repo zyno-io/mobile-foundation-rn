@@ -1,34 +1,34 @@
-# MFButton
+# MfButton
 
 Themed pressable button with icon support and press feedback.
 
 ## Usage
 
 ```tsx
-import { MFButton } from '@zyno-io/mobile-foundation-rn';
+import { MfButton } from '@zyno-io/mobile-foundation-rn';
 import { faSave, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 
 // Primary button
-<MFButton text="Save" primary onPress={handleSave} />
+<MfButton text="Save" primary onPress={handleSave} />
 
 // Secondary button (default)
-<MFButton text="Cancel" onPress={handleCancel} />
+<MfButton text="Cancel" onPress={handleCancel} />
 
 // With icon
-<MFButton text="Save" icon={faSave} primary onPress={handleSave} />
+<MfButton text="Save" icon={faSave} primary onPress={handleSave} />
 
 // Icon trailing
-<MFButton text="Next" icon={faArrowRight} iconTrailing onPress={handleNext} />
+<MfButton text="Next" icon={faArrowRight} iconTrailing onPress={handleNext} />
 
 // Disabled
-<MFButton text="Submit" primary disabled />
+<MfButton text="Submit" primary disabled />
 
 // Custom children
-<MFButton onPress={handlePress}>
+<MfButton onPress={handlePress}>
     <View style={{ flexDirection: 'row' }}>
         <Text>Custom content</Text>
     </View>
-</MFButton>
+</MfButton>
 ```
 
 ## Props

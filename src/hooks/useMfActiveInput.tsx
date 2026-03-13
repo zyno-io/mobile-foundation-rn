@@ -1,19 +1,19 @@
 import { TextInput } from 'react-native';
 
-export const MFActiveTextInputContext: { input: TextInput | null } = {
+export const MfActiveTextInputContext: { input: TextInput | null } = {
     input: null
 };
 
-export function setMFActiveTextInput(input: TextInput) {
-    MFActiveTextInputContext.input = input;
+export function setMfActiveTextInput(input: TextInput) {
+    MfActiveTextInputContext.input = input;
 }
 
-export function unsetMFActiveTextInput(input: TextInput) {
-    if (MFActiveTextInputContext.input === input) {
-        MFActiveTextInputContext.input = null;
+export function unsetMfActiveTextInput(input: TextInput) {
+    if (MfActiveTextInputContext.input === input) {
+        MfActiveTextInputContext.input = null;
     }
 }
 
-export function useMFActiveTextInputContext(): typeof MFActiveTextInputContext {
-    return MFActiveTextInputContext;
+export function useMfActiveTextInputContext(): typeof MfActiveTextInputContext {
+    return MfActiveTextInputContext;
 }

@@ -5,26 +5,26 @@ import { Pressable, PressableProps } from 'react-native-gesture-handler';
 
 import { createStyles, useStyles } from '../helpers/styles';
 
-import { MFIcon, MFIconProps } from './MFIcon';
-import { MFText } from './MFText';
+import { MfIcon, MfIconProps } from './MfIcon';
+import { MfText } from './MfText';
 
-interface MFButtonProps extends PressableProps {
+interface MfButtonProps extends PressableProps {
     primary?: boolean;
     style?: StyleProp<ViewStyle>;
     overrideStyle?: StyleProp<ViewStyle>;
     textStyle?: StyleProp<TextStyle>;
     feedback?: boolean;
     disabled?: boolean;
-    icon?: MFIconProps['icon'];
+    icon?: MfIconProps['icon'];
     iconColor?: StyleProp<TextStyle['color']>;
-    iconSize?: MFIconProps['size'];
+    iconSize?: MfIconProps['size'];
     iconTrailing?: boolean;
     iconStyle?: FontAwesomeIconStyle | undefined;
     text?: string;
     children?: React.ReactNode;
 }
 
-export const MFButton: React.FC<MFButtonProps> = props => {
+export const MfButton: React.FC<MfButtonProps> = props => {
     const {
         primary,
         style,
@@ -56,14 +56,14 @@ export const MFButton: React.FC<MFButtonProps> = props => {
             {...rest}
         >
             {!children && icon && (
-                <MFIcon
+                <MfIcon
                     icon={icon}
                     size={iconSize ?? 16}
                     color={typeof iconColor === 'string' ? iconColor : props.primary ? styles.primaryButtonTitle.color : styles.buttonTitle.color}
                     style={iconStyle}
                 />
             )}
-            {!children && text && <MFText style={[styles.buttonTitle, primary && styles.primaryButtonTitle, textStyle]}>{text}</MFText>}
+            {!children && text && <MfText style={[styles.buttonTitle, primary && styles.primaryButtonTitle, textStyle]}>{text}</MfText>}
             {children}
         </Pressable>
     );

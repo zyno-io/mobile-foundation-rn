@@ -5,10 +5,10 @@ import { Pressable, StyleProp, View, ViewStyle } from 'react-native';
 import { getFoundationConfig } from '../config';
 import { createStyles, useStyles } from '../helpers/styles';
 
-import { MFIcon } from './MFIcon';
-import { MFText } from './MFText';
+import { MfIcon } from './MfIcon';
+import { MfText } from './MfText';
 
-interface MFCheckboxProps {
+interface MfCheckboxProps {
     value?: boolean;
     onPress?: () => void;
     disabled?: boolean;
@@ -19,7 +19,7 @@ interface MFCheckboxProps {
     children?: React.ReactNode;
 }
 
-export const MFCheckbox = React.forwardRef<View, MFCheckboxProps>((props, _ref) => {
+export const MfCheckbox = React.forwardRef<View, MfCheckboxProps>((props, _ref) => {
     const { value, disabled, icon, label, wrapperStyle, unstyled, onPress, children } = props;
 
     const styles = useStyles(styleGen);
@@ -29,10 +29,10 @@ export const MFCheckbox = React.forwardRef<View, MFCheckboxProps>((props, _ref) 
             <Pressable onPress={onPress} style={({ pressed }) => [pressed && styles.pressed]} disabled={disabled}>
                 <View style={styles.checkboxWrapper}>
                     <View style={[styles.checkbox, value && styles.checked]}>
-                        {value && <MFIcon icon={icon ?? getFoundationConfig().icons.check} size={16} style={styles.icon} color={'black'} />}
+                        {value && <MfIcon icon={icon ?? getFoundationConfig().icons.check} size={16} style={styles.icon} color={'black'} />}
                     </View>
                     <View style={{ flex: 1 }}>
-                        <MFText style={styles.label}>{label}</MFText>
+                        <MfText style={styles.label}>{label}</MfText>
                     </View>
                 </View>
             </Pressable>

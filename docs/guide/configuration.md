@@ -74,8 +74,8 @@ Environment variables used by services:
 
 FontAwesome icons used by foundation components:
 
-- `check` — used by `MFCheckbox`
-- `spinner` — used by `MFLoader`
+- `check` — used by `MfCheckbox`
+- `spinner` — used by `MfLoader`
 
 ### `fonts`
 
@@ -87,7 +87,7 @@ Timeout in milliseconds for OTA update checks. When the timeout elapses, the upd
 
 ### `statusBar`
 
-Controls the `StatusBar` rendered by `FoundationProvider`:
+Controls the `StatusBar` rendered by `MfProvider`:
 
 - `barStyle: 'auto'` — automatically sets `light-content` for dark theme, `dark-content` for light
 - `backgroundColorKey` — key from `ColorScheme` to use as the status bar background color (Android)
@@ -101,7 +101,7 @@ Controls splash screen dismissal in `useSetupFoundation`:
 
 ### `deepLinkHandler`
 
-Called with the URL when the app is opened via a deep link. Invoked by `FoundationProvider`.
+Called with the URL when the app is opened via a deep link. Invoked by `MfProvider`.
 
 ### `supportContact`
 

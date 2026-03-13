@@ -1,17 +1,17 @@
-# FoundationProvider
+# MfProvider
 
 Root provider component that sets up all foundation contexts. Wrap your entire app with this component.
 
 ## Usage
 
 ```tsx
-import { FoundationProvider } from '@zyno-io/mobile-foundation-rn';
+import { MfProvider } from '@zyno-io/mobile-foundation-rn';
 
 export default function App() {
     return (
-        <FoundationProvider>
+        <MfProvider>
             <AppContent />
-        </FoundationProvider>
+        </MfProvider>
     );
 }
 ```
@@ -29,7 +29,7 @@ The `colorScheme` prop controls the React Navigation theme (header/tab bar color
 
 ## What It Provides
 
-`FoundationProvider` composes the following providers and behaviors:
+`MfProvider` composes the following providers and behaviors:
 
 - **SafeAreaProvider** — safe area inset context for all child components
 - **GestureHandlerRootView** — required by `react-native-gesture-handler`

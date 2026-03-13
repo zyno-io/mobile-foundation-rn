@@ -13,7 +13,7 @@ function MyComponent() {
         return result;
     });
 
-    return <MFButton text="Submit" onPress={() => submitForm(formData)} />;
+    return <MfButton text="Submit" onPress={() => submitForm(formData)} />;
 }
 ```
 
@@ -29,7 +29,7 @@ function CheckoutScreen() {
         await paymentApi.charge(amount);
     });
 
-    return <MFButton text="Pay" primary onPress={() => processPayment(99)} />;
+    return <MfButton text="Pay" primary onPress={() => processPayment(99)} />;
 }
 ```
 

@@ -1,6 +1,6 @@
 import { createMockConfig } from '../test-utils';
 
-describe('MFScrollView + MFTextInput auto-scroll', () => {
+describe('MfScrollView + MfTextInput auto-scroll', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
@@ -10,41 +10,41 @@ describe('MFScrollView + MFTextInput auto-scroll', () => {
     });
 
     it('sets active text input context on focus', () => {
-        const { MFActiveTextInputContext, setMFActiveTextInput, unsetMFActiveTextInput } =
+        const { MfActiveTextInputContext, setMfActiveTextInput, unsetMfActiveTextInput } =
             require('../../src/hooks/useMfActiveInput');
 
         const mockInput = { focus: jest.fn() } as any;
 
-        expect(MFActiveTextInputContext.input).toBeNull();
+        expect(MfActiveTextInputContext.input).toBeNull();
 
-        setMFActiveTextInput(mockInput);
-        expect(MFActiveTextInputContext.input).toBe(mockInput);
+        setMfActiveTextInput(mockInput);
+        expect(MfActiveTextInputContext.input).toBe(mockInput);
 
-        unsetMFActiveTextInput(mockInput);
-        expect(MFActiveTextInputContext.input).toBeNull();
+        unsetMfActiveTextInput(mockInput);
+        expect(MfActiveTextInputContext.input).toBeNull();
     });
 
-    it('unsetMFActiveTextInput only clears if same input', () => {
-        const { MFActiveTextInputContext, setMFActiveTextInput, unsetMFActiveTextInput } =
+    it('unsetMfActiveTextInput only clears if same input', () => {
+        const { MfActiveTextInputContext, setMfActiveTextInput, unsetMfActiveTextInput } =
             require('../../src/hooks/useMfActiveInput');
 
         const input1 = { focus: jest.fn() } as any;
         const input2 = { focus: jest.fn() } as any;
 
-        setMFActiveTextInput(input1);
-        unsetMFActiveTextInput(input2); // different input
-        expect(MFActiveTextInputContext.input).toBe(input1); // should not clear
+        setMfActiveTextInput(input1);
+        unsetMfActiveTextInput(input2); // different input
+        expect(MfActiveTextInputContext.input).toBe(input1); // should not clear
     });
 
-    it('MFWrapperView measures layout on mount', () => {
+    it('MfWrapperView measures layout on mount', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFWrapperView } = require('../../src/components/MFWrapperView');
+        const { MfWrapperView } = require('../../src/components/MfWrapperView');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFWrapperView, null,
+                React.createElement(MfWrapperView, null,
                     React.createElement('View', { testID: 'inner' }),
                 ),
             );
@@ -54,15 +54,15 @@ describe('MFScrollView + MFTextInput auto-scroll', () => {
         expect(tree.toJSON()).not.toBeNull();
     });
 
-    it('MFScrollView renders with flex:1 by default', () => {
+    it('MfScrollView renders with flex:1 by default', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFScrollView } = require('../../src/components/MFScrollView');
+        const { MfScrollView } = require('../../src/components/MfScrollView');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFScrollView, null,
+                React.createElement(MfScrollView, null,
                     React.createElement('View', null),
                 ),
             );
@@ -91,15 +91,15 @@ describe('MFScrollView + MFTextInput auto-scroll', () => {
         expect(hasFlex).toBe(true);
     });
 
-    it('MFScrollView sets keyboardShouldPersistTaps to handled', () => {
+    it('MfScrollView sets keyboardShouldPersistTaps to handled', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFScrollView } = require('../../src/components/MFScrollView');
+        const { MfScrollView } = require('../../src/components/MfScrollView');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFScrollView, null,
+                React.createElement(MfScrollView, null,
                     React.createElement('View', null),
                 ),
             );
@@ -123,15 +123,15 @@ describe('MFScrollView + MFTextInput auto-scroll', () => {
         expect(scrollView.props.keyboardShouldPersistTaps).toBe('handled');
     });
 
-    it('MFScrollView disables overscroll by default', () => {
+    it('MfScrollView disables overscroll by default', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFScrollView } = require('../../src/components/MFScrollView');
+        const { MfScrollView } = require('../../src/components/MfScrollView');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFScrollView, null,
+                React.createElement(MfScrollView, null,
                     React.createElement('View', null),
                 ),
             );
@@ -156,15 +156,15 @@ describe('MFScrollView + MFTextInput auto-scroll', () => {
         expect(scrollView.props.alwaysBounceVertical).toBe(false);
     });
 
-    it('MFScrollView allows overscroll when allowOverscroll is true', () => {
+    it('MfScrollView allows overscroll when allowOverscroll is true', () => {
         const React = require('react');
         const renderer = require('react-test-renderer');
-        const { MFScrollView } = require('../../src/components/MFScrollView');
+        const { MfScrollView } = require('../../src/components/MfScrollView');
 
         let tree: any;
         renderer.act(() => {
             tree = renderer.create(
-                React.createElement(MFScrollView, { allowOverscroll: true },
+                React.createElement(MfScrollView, { allowOverscroll: true },
                     React.createElement('View', null),
                 ),
             );

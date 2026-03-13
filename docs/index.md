@@ -13,9 +13,9 @@ hero:
       link: /api/config
 features:
   - title: Keyboard Avoidance
-    details: MFWrapperView and MFScrollView automatically handle keyboard avoidance, safe area insets, and scroll-to-input behavior across all navigator layouts.
+    details: MfWrapperView and MfScrollView automatically handle keyboard avoidance, safe area insets, and scroll-to-input behavior across all navigator layouts.
   - title: Form Navigation
-    details: The Form component auto-detects input positions and wires up Next/Done keyboard navigation — including side-by-side inputs.
+    details: The MfForm component auto-detects input positions and wires up Next/Done keyboard navigation — including side-by-side inputs.
   - title: Theming
     details: Light/dark color schemes with createStyles/useStyles/useColors. Override themes per-subtree with ColorSchemeOverrideContext.
   - title: Services

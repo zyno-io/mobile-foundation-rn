@@ -3,16 +3,16 @@ import { FlatList, FlatListProps, Insets, StyleSheet } from 'react-native';
 
 import { hasHeightOrFlexProps } from '../helpers/layout';
 
-import { MFWrapperView } from './MFWrapperView';
+import { MfWrapperView } from './MfWrapperView';
 import { Inset } from '../hooks/useMfSafeAreaInsets';
 
-interface MFFlatListProps<T> extends FlatListProps<T> {
+interface MfFlatListProps<T> extends FlatListProps<T> {
     safeArea?: boolean | Inset[] | Inset;
     noKeyboardAvoiding?: boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const MFFlatList = React.forwardRef<FlatList, MFFlatListProps<any>>((props, forwardedRef) => {
+export const MfFlatList = React.forwardRef<FlatList, MfFlatListProps<any>>((props, forwardedRef) => {
     const { safeArea, noKeyboardAvoiding, ...flatListProps } = props;
     const [insetsPadding, setInsetsPadding] = useState<Insets | null>(null);
 
@@ -37,13 +37,13 @@ export const MFFlatList = React.forwardRef<FlatList, MFFlatListProps<any>>((prop
     }, [props.contentContainerStyle, insetsPadding]);
 
     return (
-        <MFWrapperView
+        <MfWrapperView
             safeArea={safeArea}
             noKeyboardAvoiding={noKeyboardAvoiding}
             contentContainerStyle={flatListProps.contentContainerStyle ?? {}}
             onInsetsPaddingUpdated={setInsetsPadding}
         >
             <FlatList ref={forwardedRef} {...props} style={style} contentContainerStyle={[contentContainerStyle]} />
-        </MFWrapperView>
+        </MfWrapperView>
     );
 });
