@@ -24,6 +24,12 @@ yarn add react react-native \
   mobx mobx-react-lite lodash react-native-logs
 ```
 
+Be sure to then sync the package versions with those required by the version of Expo you're using, if applicable:
+
+```bash
+npx expo install --fix
+```
+
 ## Quick Setup
 
 ### 1. Create your app storage

@@ -1,7 +1,8 @@
 import { defineConfig } from 'vitepress';
 
 export default defineConfig({
-    title: 'RN Foundation',
+    base: '/mobile-foundation-rn/',
+    title: 'Mobile Foundation (RN)',
     description: 'Shared foundation library for React Native apps',
     themeConfig: {
         nav: [

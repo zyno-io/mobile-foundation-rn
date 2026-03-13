@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: RN Foundation
+  name: Mobile Foundation (RN)
   text: Shared foundation for React Native apps
   tagline: Keyboard avoidance, theming, form navigation, and essential services — all wired together.
   actions:
