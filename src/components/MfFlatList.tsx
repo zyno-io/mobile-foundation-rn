@@ -13,7 +13,7 @@ interface MfFlatListProps<T> extends FlatListProps<T> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const MfFlatList = React.forwardRef<FlatList, MfFlatListProps<any>>((props, forwardedRef) => {
-    const { safeArea, noKeyboardAvoiding, testID, ...flatListProps } = props;
+    const { safeArea, noKeyboardAvoiding, ...flatListProps } = props;
     const [insetsPadding, setInsetsPadding] = useState<Insets | null>(null);
 
     const style = useMemo(() => {
@@ -42,7 +42,6 @@ export const MfFlatList = React.forwardRef<FlatList, MfFlatListProps<any>>((prop
             noKeyboardAvoiding={noKeyboardAvoiding}
             contentContainerStyle={flatListProps.contentContainerStyle ?? {}}
             onInsetsPaddingUpdated={setInsetsPadding}
-            testID={testID}
         >
             <FlatList ref={forwardedRef} {...props} style={style} contentContainerStyle={[contentContainerStyle]} />
         </MfWrapperView>

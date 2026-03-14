@@ -32,7 +32,7 @@ export const MfScrollView = React.forwardRef<ScrollView, MfScrollViewProps>((pro
         );
     };
 
-    const { safeArea, noKeyboardAvoiding, testID, ...scrollViewProps } = props;
+    const { safeArea, noKeyboardAvoiding, ...scrollViewProps } = props;
     const [insetsPadding, setInsetsPadding] = useState<Insets | null>(null);
 
     const style = useMemo(() => {
@@ -61,7 +61,6 @@ export const MfScrollView = React.forwardRef<ScrollView, MfScrollViewProps>((pro
             noKeyboardAvoiding={noKeyboardAvoiding}
             contentContainerStyle={scrollViewProps.contentContainerStyle ?? {}}
             onInsetsPaddingUpdated={setInsetsPadding}
-            testID={testID}
         >
             <ScrollView
                 ref={node => {
