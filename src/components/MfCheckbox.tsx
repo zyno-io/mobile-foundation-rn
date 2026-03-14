@@ -17,15 +17,16 @@ interface MfCheckboxProps {
     wrapperStyle?: StyleProp<ViewStyle>;
     unstyled?: boolean;
     children?: React.ReactNode;
+    testID?: string;
 }
 
 export const MfCheckbox = React.forwardRef<View, MfCheckboxProps>((props, _ref) => {
-    const { value, disabled, icon, label, wrapperStyle, unstyled, onPress, children } = props;
+    const { value, disabled, icon, label, wrapperStyle, unstyled, onPress, children, testID } = props;
 
     const styles = useStyles(styleGen);
 
     return (
-        <View style={[unstyled && styles.checkboxWrapper, disabled && styles.disabled, wrapperStyle]}>
+        <View testID={testID} style={[unstyled && styles.checkboxWrapper, disabled && styles.disabled, wrapperStyle]}>
             <Pressable onPress={onPress} style={({ pressed }) => [pressed && styles.pressed]} disabled={disabled}>
                 <View style={styles.checkboxWrapper}>
                     <View style={[styles.checkbox, value && styles.checked]}>

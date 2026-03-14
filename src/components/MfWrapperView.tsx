@@ -23,6 +23,7 @@ interface MfWrapperViewProps extends MfWrapperViewCommonProps {
     center?: boolean;
     contentContainerStyle?: ViewProps['style'];
     onInsetsPaddingUpdated?: (padding: Insets) => void;
+    testID?: string;
 }
 
 export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
@@ -124,7 +125,7 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
 
     return (
         <KeyboardHeightProvider>
-            <Animated.View ref={viewRef} onLayout={onLayoutDb} style={style}>
+            <Animated.View ref={viewRef} onLayout={onLayoutDb} style={style} testID={props.testID}>
                 {props.children}
             </Animated.View>
         </KeyboardHeightProvider>

@@ -9,12 +9,13 @@ interface MfLoaderProps {
     color?: string;
     size?: number;
     background?: boolean;
+    testID?: string;
 }
 interface MfLoaderViewProps extends ViewProps {
     color?: string;
     size?: number;
 }
-export const MfLoader: React.FC<MfLoaderProps> = ({ color, size, background }) => {
+export const MfLoader: React.FC<MfLoaderProps> = ({ color, size, background, testID }) => {
     const styles = useStyles(styleGen);
     const colors = useColors();
     const spinValue = useRef(new Animated.Value(0)).current;
@@ -40,6 +41,7 @@ export const MfLoader: React.FC<MfLoaderProps> = ({ color, size, background }) =
 
     return (
         <View
+            testID={testID}
             style={[
                 styles.wrapper,
                 { width: size, height: size },

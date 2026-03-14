@@ -7,11 +7,11 @@ import { LoaderState } from '../helpers/observable';
 
 import { MfLoader } from './MfLoader';
 
-export const MfLoaderOverlay: React.FC<{ solo?: boolean }> = ({ solo }) => {
+export const MfLoaderOverlay: React.FC<{ solo?: boolean; testID?: string }> = ({ solo, testID }) => {
     const styles = useStyles(styleGen);
 
     return (
-        <View style={[styles.outerWrapper, solo && styles.solo]}>
+        <View testID={testID} style={[styles.outerWrapper, solo && styles.solo]}>
             <MfLoader background />
         </View>
     );

@@ -8,9 +8,10 @@ export interface MfIconProps {
     size?: number;
     color?: string;
     style?: FontAwesomeIconStyle;
+    testID?: string;
 }
 
 export const MfIcon: React.FC<MfIconProps> = props => {
     const colors = useColors();
-    return <FontAwesomeIcon icon={props.icon} size={props.size ?? 16} color={props.color || colors.text} style={props.style} />;
+    return <FontAwesomeIcon icon={props.icon} size={props.size ?? 16} color={props.color || colors.text} style={props.style} testID={props.testID} />;
 };
