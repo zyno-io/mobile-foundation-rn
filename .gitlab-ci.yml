@@ -91,7 +91,7 @@ e2e:ios:
               || /usr/libexec/PlistBuddy -c "Add :DevicePreferences:${UDID}:ConnectHardwareKeyboard bool false" "$PLIST"
             done
       fi
-    - npx detox test -c ios.sim.release --headless --take-screenshots failing
+    - npx detox test -c ios.sim.release --take-screenshots failing
   artifacts:
     when: always
     paths:
