@@ -11,15 +11,12 @@ describe('MfText', () => {
 
     it('renders with text color from theme', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfText } = require('../../src/components/MfText');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(MfText, null, 'Hello'));
-        });
+        const { toJSON } = render(React.createElement(MfText, null, 'Hello'));
 
-        const json = tree.toJSON();
+        const json = toJSON();
         expect(json.type).toBe('Text');
         expect(json.children).toContain('Hello');
         // Default light theme text color
@@ -30,31 +27,25 @@ describe('MfText', () => {
 
     it('applies maxFontSizeMultiplier of 1.5', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfText } = require('../../src/components/MfText');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(MfText, null, 'Test'));
-        });
+        const { toJSON } = render(React.createElement(MfText, null, 'Test'));
 
-        const json = tree.toJSON();
+        const json = toJSON();
         expect(json.props.maxFontSizeMultiplier).toBe(1.5);
     });
 
     it('merges custom style with defaults', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfText } = require('../../src/components/MfText');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfText, { style: { fontSize: 24 } }, 'Big'),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfText, { style: { fontSize: 24 } }, 'Big'),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const flatStyle = [].concat(...[json.props.style].flat(Infinity));
         const customStyle = flatStyle.find((s: any) => s?.fontSize === 24);
         expect(customStyle).toBeDefined();
@@ -62,17 +53,14 @@ describe('MfText', () => {
 
     it('MfStatusTextView centers content', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfStatusTextView } = require('../../src/components/MfText');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfStatusTextView, null, 'Status'),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfStatusTextView, null, 'Status'),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         // Outer View should have centering styles
         expect(json.type).toBe('View');
         expect(json.props.style.alignItems).toBe('center');

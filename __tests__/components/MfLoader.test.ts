@@ -9,103 +9,64 @@ describe('MfLoader', () => {
         configModule.configureFoundation(createMockConfig());
     });
 
-    it('renders spinner icon from config', () => {
-        const React = require('react');
-        const renderer = require('react-test-renderer');
-        const { MfLoader } = require('../../src/components/MfLoader');
-
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(MfLoader));
-        });
-
-        const json = tree.toJSON();
-        // Look for the FontAwesomeIcon in the tree
-        const findIcon = (node: any): any => {
-            if (!node) return null;
-            if (node.type === 'FontAwesomeIcon') return node;
-            if (node.children) {
-                for (const child of node.children) {
-                    if (typeof child === 'object') {
-                        const found = findIcon(child);
-                        if (found) return found;
-                    }
+    function findIcon(node: any): any {
+        if (!node) return null;
+        if (node.type === 'FontAwesomeIcon') return node;
+        if (node.children) {
+            for (const child of node.children) {
+                if (typeof child === 'object') {
+                    const found = findIcon(child);
+                    if (found) return found;
                 }
             }
-            return null;
-        };
-        const icon = findIcon(json);
+        }
+        return null;
+    }
+
+    it('renders spinner icon from config', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { MfLoader } = require('../../src/components/MfLoader');
+
+        const { toJSON } = render(React.createElement(MfLoader));
+
+        const icon = findIcon(toJSON());
         expect(icon).not.toBeNull();
         expect(icon.props.icon).toBe('spinner');
     });
 
     it('uses primaryButtonBackground color by default', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfLoader } = require('../../src/components/MfLoader');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(MfLoader));
-        });
+        const { toJSON } = render(React.createElement(MfLoader));
 
-        const findIcon = (node: any): any => {
-            if (!node) return null;
-            if (node.type === 'FontAwesomeIcon') return node;
-            if (node.children) {
-                for (const child of node.children) {
-                    if (typeof child === 'object') {
-                        const found = findIcon(child);
-                        if (found) return found;
-                    }
-                }
-            }
-            return null;
-        };
-        const icon = findIcon(tree.toJSON());
+        const icon = findIcon(toJSON());
         expect(icon.props.color).toBe('#007AFF');
     });
 
     it('accepts custom color prop', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfLoader } = require('../../src/components/MfLoader');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfLoader, { color: 'green' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfLoader, { color: 'green' }),
+        );
 
-        const findIcon = (node: any): any => {
-            if (!node) return null;
-            if (node.type === 'FontAwesomeIcon') return node;
-            if (node.children) {
-                for (const child of node.children) {
-                    if (typeof child === 'object') {
-                        const found = findIcon(child);
-                        if (found) return found;
-                    }
-                }
-            }
-            return null;
-        };
-        const icon = findIcon(tree.toJSON());
+        const icon = findIcon(toJSON());
         expect(icon.props.color).toBe('green');
     });
 
     it('MfLoaderView centers loader', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfLoaderView } = require('../../src/components/MfLoader');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(MfLoaderView));
-        });
+        const { toJSON } = render(React.createElement(MfLoaderView));
 
-        const json = tree.toJSON();
+        const json = toJSON();
         // Outer view should have centering styles
         const flatStyle = [].concat(...[json.props.style].flat(Infinity));
         expect(flatStyle).toContainEqual(

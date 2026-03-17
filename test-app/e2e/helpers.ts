@@ -96,7 +96,7 @@ export async function assertAboveKeyboard(testID: string) {
     if (inputBottom > threshold) {
         throw new Error(
             `Element "${testID}" bottom (${inputBottom}) appears to be below keyboard area. ` +
-            `Frame: ${JSON.stringify(frame)}`,
+            `Threshold: ${threshold}. Frame: ${JSON.stringify(frame)}`,
         );
     }
 }

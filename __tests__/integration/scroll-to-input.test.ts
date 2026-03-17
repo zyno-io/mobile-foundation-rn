@@ -38,53 +38,45 @@ describe('MfScrollView + MfTextInput auto-scroll', () => {
 
     it('MfWrapperView measures layout on mount', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfWrapperView } = require('../../src/components/MfWrapperView');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfWrapperView, null,
-                    React.createElement('View', { testID: 'inner' }),
-                ),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfWrapperView, null,
+                React.createElement('View', { testID: 'inner' }),
+            ),
+        );
 
         // The component should render without error
-        expect(tree.toJSON()).not.toBeNull();
+        expect(toJSON()).not.toBeNull();
     });
+
+    function findNode(node: any, type: string): any {
+        if (!node) return null;
+        if (node.type === type) return node;
+        if (node.children) {
+            for (const child of node.children) {
+                if (typeof child === 'object') {
+                    const found = findNode(child, type);
+                    if (found) return found;
+                }
+            }
+        }
+        return null;
+    }
 
     it('MfScrollView renders with flex:1 by default', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfScrollView } = require('../../src/components/MfScrollView');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfScrollView, null,
-                    React.createElement('View', null),
-                ),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfScrollView, null,
+                React.createElement('View', null),
+            ),
+        );
 
-        const json = tree.toJSON();
-        // Find the ScrollView in the tree
-        const findNode = (node: any, type: string): any => {
-            if (!node) return null;
-            if (node.type === type) return node;
-            if (node.children) {
-                for (const child of node.children) {
-                    if (typeof child === 'object') {
-                        const found = findNode(child, type);
-                        if (found) return found;
-                    }
-                }
-            }
-            return null;
-        };
-
-        const scrollView = findNode(json, 'ScrollView');
+        const scrollView = findNode(toJSON(), 'ScrollView');
         expect(scrollView).not.toBeNull();
         const flatStyle = [].concat(...[scrollView.props.style].flat(Infinity));
         const hasFlex = flatStyle.some((s: any) => s?.flex === 1);
@@ -93,98 +85,47 @@ describe('MfScrollView + MfTextInput auto-scroll', () => {
 
     it('MfScrollView sets keyboardShouldPersistTaps to handled', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfScrollView } = require('../../src/components/MfScrollView');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfScrollView, null,
-                    React.createElement('View', null),
-                ),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfScrollView, null,
+                React.createElement('View', null),
+            ),
+        );
 
-        const findNode = (node: any, type: string): any => {
-            if (!node) return null;
-            if (node.type === type) return node;
-            if (node.children) {
-                for (const child of node.children) {
-                    if (typeof child === 'object') {
-                        const found = findNode(child, type);
-                        if (found) return found;
-                    }
-                }
-            }
-            return null;
-        };
-
-        const scrollView = findNode(tree.toJSON(), 'ScrollView');
+        const scrollView = findNode(toJSON(), 'ScrollView');
         expect(scrollView.props.keyboardShouldPersistTaps).toBe('handled');
     });
 
     it('MfScrollView disables overscroll by default', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfScrollView } = require('../../src/components/MfScrollView');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfScrollView, null,
-                    React.createElement('View', null),
-                ),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfScrollView, null,
+                React.createElement('View', null),
+            ),
+        );
 
-        const findNode = (node: any, type: string): any => {
-            if (!node) return null;
-            if (node.type === type) return node;
-            if (node.children) {
-                for (const child of node.children) {
-                    if (typeof child === 'object') {
-                        const found = findNode(child, type);
-                        if (found) return found;
-                    }
-                }
-            }
-            return null;
-        };
-
-        const scrollView = findNode(tree.toJSON(), 'ScrollView');
+        const scrollView = findNode(toJSON(), 'ScrollView');
         expect(scrollView.props.overScrollMode).toBe('never');
         expect(scrollView.props.alwaysBounceVertical).toBe(false);
     });
 
     it('MfScrollView allows overscroll when allowOverscroll is true', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfScrollView } = require('../../src/components/MfScrollView');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfScrollView, { allowOverscroll: true },
-                    React.createElement('View', null),
-                ),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfScrollView, { allowOverscroll: true },
+                React.createElement('View', null),
+            ),
+        );
 
-        const findNode = (node: any, type: string): any => {
-            if (!node) return null;
-            if (node.type === type) return node;
-            if (node.children) {
-                for (const child of node.children) {
-                    if (typeof child === 'object') {
-                        const found = findNode(child, type);
-                        if (found) return found;
-                    }
-                }
-            }
-            return null;
-        };
-
-        const scrollView = findNode(tree.toJSON(), 'ScrollView');
+        const scrollView = findNode(toJSON(), 'ScrollView');
         expect(scrollView.props.overScrollMode).toBeUndefined();
     });
 });

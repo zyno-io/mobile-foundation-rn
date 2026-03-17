@@ -11,47 +11,38 @@ describe('MfTextArea', () => {
 
     it('renders as multiline', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfTextArea } = require('../../src/components/MfTextArea');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(MfTextArea));
-        });
+        const { toJSON } = render(React.createElement(MfTextArea));
 
-        const json = tree.toJSON();
+        const json = toJSON();
         expect(json.props.multiline).toBe(true);
     });
 
     it('sets editable false when disabled', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfTextArea } = require('../../src/components/MfTextArea');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfTextArea, { disabled: true }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfTextArea, { disabled: true }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         expect(json.props.editable).toBe(false);
     });
 
     it('applies disabled opacity style when disabled', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfTextArea } = require('../../src/components/MfTextArea');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfTextArea, { disabled: true }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfTextArea, { disabled: true }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const flatStyle = [].concat(...[json.props.style].flat(Infinity));
         const hasDisabledStyle = flatStyle.some((s: any) => s?.opacity === 0.5);
         expect(hasDisabledStyle).toBe(true);
@@ -59,17 +50,14 @@ describe('MfTextArea', () => {
 
     it('renders placeholder text', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfTextArea } = require('../../src/components/MfTextArea');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfTextArea, { placeholder: 'Write here...' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfTextArea, { placeholder: 'Write here...' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         expect(json.props.placeholder).toBe('Write here...');
     });
 });

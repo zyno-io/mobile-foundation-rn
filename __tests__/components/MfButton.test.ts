@@ -39,17 +39,14 @@ describe('MfButton', () => {
 
     it('renders text label', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfButton } = require('../../src/components/MfButton');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfButton, { text: 'Submit' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfButton, { text: 'Submit' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const texts = findAllByType(json, 'Text');
         const label = texts.find((t: any) => t.children?.includes('Submit'));
         expect(label).toBeDefined();
@@ -57,38 +54,32 @@ describe('MfButton', () => {
 
     it('renders icon when icon prop provided', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfButton } = require('../../src/components/MfButton');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfButton, { icon: 'plus', text: 'Add' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfButton, { icon: 'plus', text: 'Add' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const icon = findByType(json, 'FontAwesomeIcon');
         expect(icon).not.toBeNull();
     });
 
     it('renders children instead of text when provided', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfButton } = require('../../src/components/MfButton');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(
-                    MfButton,
-                    { text: 'Ignored' },
-                    React.createElement('View', { testID: 'custom-child' }),
-                ),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(
+                MfButton,
+                { text: 'Ignored' },
+                React.createElement('View', { testID: 'custom-child' }),
+            ),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         // text should not render when children present
         const texts = findAllByType(json, 'Text');
         const label = texts.find((t: any) => t.children?.includes('Ignored'));
@@ -97,17 +88,14 @@ describe('MfButton', () => {
 
     it('applies primary button styles when primary prop is true', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfButton } = require('../../src/components/MfButton');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfButton, { primary: true, text: 'Primary' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfButton, { primary: true, text: 'Primary' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         // The button style should contain primaryButton background
         const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
         const hasPrimaryBg = flatStyle.some(
@@ -118,17 +106,14 @@ describe('MfButton', () => {
 
     it('applies disabled opacity when disabled', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfButton } = require('../../src/components/MfButton');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfButton, { disabled: true, text: 'Disabled' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfButton, { disabled: true, text: 'Disabled' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
         const hasDisabled = flatStyle.some((s: any) => s?.opacity === 0.5);
         expect(hasDisabled).toBe(true);

@@ -40,20 +40,17 @@ describe('MfProvider composition', () => {
 
         const { MfProvider } = require('../../src/components/MfProvider');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(
-                    MfProvider,
-                    null,
-                    React.createElement('View', { testID: 'child-view' }),
-                ),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(
+                MfProvider,
+                null,
+                React.createElement('View', { testID: 'child-view' }),
+            ),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const child = findByType(json, 'View');
         expect(child).not.toBeNull();
     });
@@ -69,13 +66,11 @@ describe('MfProvider composition', () => {
         const { MfProvider } = require('../../src/components/MfProvider');
         const { StatusBar } = require('react-native');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
-        renderer.act(() => {
-            renderer.create(
-                React.createElement(MfProvider, null, null),
-            );
-        });
+        render(
+            React.createElement(MfProvider, null, null),
+        );
 
         // StatusBar component should be rendered (it's a mock string in our setup)
         // The component renders <StatusBar barStyle=... /> which uses the mock
@@ -89,17 +84,14 @@ describe('MfProvider composition', () => {
 
         const { MfProvider } = require('../../src/components/MfProvider');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
         // Should not throw
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfProvider, null, null),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfProvider, null, null),
+        );
 
-        expect(tree.toJSON()).toBeDefined();
+        expect(toJSON()).toBeDefined();
     });
 
     it('deep link handler fires when linking URL is available', () => {
@@ -117,13 +109,11 @@ describe('MfProvider composition', () => {
 
         const { MfProvider } = require('../../src/components/MfProvider');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
-        renderer.act(() => {
-            renderer.create(
-                React.createElement(MfProvider, null, null),
-            );
-        });
+        render(
+            React.createElement(MfProvider, null, null),
+        );
 
         // The deepLinkHandler gets called via useEffect after getLinkingUrl returns a value
         // Since getLinkingUrl reads from a module-level variable set by getInitialURL().then(),

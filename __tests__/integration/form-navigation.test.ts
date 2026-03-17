@@ -10,7 +10,7 @@ describe('MfForm + TextInput keyboard navigation', () => {
 
     function setupForm() {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
         let context: ReturnType<typeof MfForm.useMfFormContext>;
 
@@ -19,13 +19,11 @@ describe('MfForm + TextInput keyboard navigation', () => {
             return null;
         }
 
-        renderer.act(() => {
-            renderer.create(
-                React.createElement(MfForm.MfForm, null,
-                    React.createElement(TestComponent),
-                ),
-            );
-        });
+        render(
+            React.createElement(MfForm.MfForm, null,
+                React.createElement(TestComponent),
+            ),
+        );
 
         return context!;
     }

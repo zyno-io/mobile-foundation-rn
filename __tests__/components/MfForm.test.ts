@@ -12,7 +12,7 @@ describe('MfForm logic', () => {
     describe('useMfFormContext outside of MfForm', () => {
         it('returns no-op fallback methods', () => {
             const React = require('react');
-            const renderer = require('react-test-renderer');
+            const { render } = require('@testing-library/react-native/pure');
 
             let context: ReturnType<typeof MfForm.useMfFormContext>;
             function TestComponent() {
@@ -20,9 +20,7 @@ describe('MfForm logic', () => {
                 return null;
             }
 
-            renderer.act(() => {
-                renderer.create(React.createElement(TestComponent));
-            });
+            render(React.createElement(TestComponent));
 
             // Should not throw
             expect(context!.registerInput).toBeInstanceOf(Function);
@@ -34,7 +32,7 @@ describe('MfForm logic', () => {
     describe('MfForm context registration and navigation', () => {
         it('getNextInput returns inputs sorted by y then x position', () => {
             const React = require('react');
-            const renderer = require('react-test-renderer');
+            const { render } = require('@testing-library/react-native/pure');
 
             let context: ReturnType<typeof MfForm.useMfFormContext>;
 
@@ -48,13 +46,11 @@ describe('MfForm logic', () => {
                 return null;
             }
 
-            renderer.act(() => {
-                renderer.create(
-                    React.createElement(MfForm.MfForm, null,
-                        React.createElement(TestComponent)
-                    )
-                );
-            });
+            render(
+                React.createElement(MfForm.MfForm, null,
+                    React.createElement(TestComponent)
+                )
+            );
 
             // Register inputs
             context!.registerInput(input1);
@@ -73,7 +69,7 @@ describe('MfForm logic', () => {
 
         it('unregisterInput removes input from navigation', () => {
             const React = require('react');
-            const renderer = require('react-test-renderer');
+            const { render } = require('@testing-library/react-native/pure');
 
             let context: ReturnType<typeof MfForm.useMfFormContext>;
 
@@ -86,13 +82,11 @@ describe('MfForm logic', () => {
                 return null;
             }
 
-            renderer.act(() => {
-                renderer.create(
-                    React.createElement(MfForm.MfForm, null,
-                        React.createElement(TestComponent)
-                    )
-                );
-            });
+            render(
+                React.createElement(MfForm.MfForm, null,
+                    React.createElement(TestComponent)
+                )
+            );
 
             context!.registerInput(input1);
             context!.registerInput(input2);
@@ -107,7 +101,7 @@ describe('MfForm logic', () => {
 
         it('returns null for unknown input', () => {
             const React = require('react');
-            const renderer = require('react-test-renderer');
+            const { render } = require('@testing-library/react-native/pure');
 
             let context: ReturnType<typeof MfForm.useMfFormContext>;
 
@@ -116,13 +110,11 @@ describe('MfForm logic', () => {
                 return null;
             }
 
-            renderer.act(() => {
-                renderer.create(
-                    React.createElement(MfForm.MfForm, null,
-                        React.createElement(TestComponent)
-                    )
-                );
-            });
+            render(
+                React.createElement(MfForm.MfForm, null,
+                    React.createElement(TestComponent)
+                )
+            );
 
             const unknown = {} as TextInput;
             expect(context!.getNextInput(unknown)).toBeNull();

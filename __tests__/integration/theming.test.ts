@@ -15,7 +15,7 @@ describe('Theming integration', () => {
 
         const { useColors } = require('../../src/helpers/styles');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
         let colors: any;
         function TestComponent() {
@@ -23,9 +23,7 @@ describe('Theming integration', () => {
             return null;
         }
 
-        renderer.act(() => {
-            renderer.create(React.createElement(TestComponent));
-        });
+        render(React.createElement(TestComponent));
 
         expect(colors.background).toBe(config.colors.light.background);
     });
@@ -40,7 +38,7 @@ describe('Theming integration', () => {
 
         const { useColors } = require('../../src/helpers/styles');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
         let colors: any;
         function TestComponent() {
@@ -48,9 +46,7 @@ describe('Theming integration', () => {
             return null;
         }
 
-        renderer.act(() => {
-            renderer.create(React.createElement(TestComponent));
-        });
+        render(React.createElement(TestComponent));
 
         expect(colors.background).toBe(config.colors.dark.background);
     });
@@ -65,7 +61,7 @@ describe('Theming integration', () => {
 
         const { useColors, ColorSchemeOverrideContext } = require('../../src/helpers/styles');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
         let colors: any;
         function TestComponent() {
@@ -73,15 +69,13 @@ describe('Theming integration', () => {
             return null;
         }
 
-        renderer.act(() => {
-            renderer.create(
-                React.createElement(
-                    ColorSchemeOverrideContext.Provider,
-                    { value: 'dark' },
-                    React.createElement(TestComponent),
-                ),
-            );
-        });
+        render(
+            React.createElement(
+                ColorSchemeOverrideContext.Provider,
+                { value: 'dark' },
+                React.createElement(TestComponent),
+            ),
+        );
 
         // Should use dark despite system being light
         expect(colors.background).toBe(config.colors.dark.background);
@@ -96,7 +90,7 @@ describe('Theming integration', () => {
 
         const { createStyles, useStyles } = require('../../src/helpers/styles');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
 
         const gen = createStyles((colors: any) => ({
             container: { backgroundColor: colors.background },
@@ -108,15 +102,10 @@ describe('Theming integration', () => {
             return null;
         }
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(TestComponent));
-        });
+        const { rerender } = render(React.createElement(TestComponent));
 
         // Force re-render
-        renderer.act(() => {
-            tree.update(React.createElement(TestComponent));
-        });
+        rerender(React.createElement(TestComponent));
 
         // Same reference since scheme didn't change
         expect(results[0]).toBe(results[1]);

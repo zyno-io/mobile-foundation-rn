@@ -37,7 +37,7 @@ describe('useAppStateEffect', () => {
     it('useAppStateEffect fires effect after hasLaunched is true', () => {
         const mod = require('../../src/hooks/useAppStateEffect');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render, act } = require('@testing-library/react-native/pure');
 
         const effect = jest.fn();
 
@@ -46,9 +46,7 @@ describe('useAppStateEffect', () => {
             return null;
         }
 
-        renderer.act(() => {
-            renderer.create(React.createElement(TestComponent));
-        });
+        render(React.createElement(TestComponent));
 
         // First, trigger 'active' to set hasLaunched (module-level listener)
         for (const l of [...changeListeners]) l('active');
@@ -64,7 +62,7 @@ describe('useAppStateEffect', () => {
     it('useAppActivatedEffect only fires on active state', () => {
         const mod = require('../../src/hooks/useAppStateEffect');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render, act } = require('@testing-library/react-native/pure');
 
         const effect = jest.fn();
 
@@ -73,9 +71,7 @@ describe('useAppStateEffect', () => {
             return null;
         }
 
-        renderer.act(() => {
-            renderer.create(React.createElement(TestComponent));
-        });
+        render(React.createElement(TestComponent));
 
         // Set hasLaunched
         for (const l of [...changeListeners]) l('active');
@@ -96,7 +92,7 @@ describe('useAppStateEffect', () => {
     it('useAppDeactivatedEvent only fires on background state', () => {
         const mod = require('../../src/hooks/useAppStateEffect');
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render, act } = require('@testing-library/react-native/pure');
 
         const effect = jest.fn();
 
@@ -105,9 +101,7 @@ describe('useAppStateEffect', () => {
             return null;
         }
 
-        renderer.act(() => {
-            renderer.create(React.createElement(TestComponent));
-        });
+        render(React.createElement(TestComponent));
 
         // Set hasLaunched
         for (const l of [...changeListeners]) l('active');

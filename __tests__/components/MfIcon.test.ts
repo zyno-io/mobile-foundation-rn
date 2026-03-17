@@ -11,66 +11,54 @@ describe('MfIcon', () => {
 
     it('renders with theme default color', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfIcon } = require('../../src/components/MfIcon');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfIcon, { icon: 'star' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfIcon, { icon: 'star' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         // FontAwesomeIcon is mocked as a string component
         expect(json.props.color).toBe('#000'); // light theme text color
     });
 
     it('uses custom color prop when provided', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfIcon } = require('../../src/components/MfIcon');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfIcon, { icon: 'star', color: 'red' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfIcon, { icon: 'star', color: 'red' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         expect(json.props.color).toBe('red');
     });
 
     it('uses custom size prop when provided', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfIcon } = require('../../src/components/MfIcon');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfIcon, { icon: 'star', size: 32 }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfIcon, { icon: 'star', size: 32 }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         expect(json.props.size).toBe(32);
     });
 
     it('defaults to size 16', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfIcon } = require('../../src/components/MfIcon');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfIcon, { icon: 'star' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfIcon, { icon: 'star' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         expect(json.props.size).toBe(16);
     });
 });

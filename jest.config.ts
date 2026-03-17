@@ -15,6 +15,7 @@ const config: Config = {
         '^@react-native-async-storage/async-storage$': `${m}/async-storage.ts`,
         '^expo-file-system/legacy$': `${m}/expo-file-system-legacy.ts`,
         '^expo-file-system/next$': `${m}/expo-file-system-next.ts`,
+        '^expo-file-system$': `${m}/expo-file-system.ts`,
         '^react-native-device-info$': `${m}/react-native-device-info.ts`,
         '^@sentry/react-native$': `${m}/sentry-react-native.ts`,
         '^expo-updates$': `${m}/expo-updates.ts`,

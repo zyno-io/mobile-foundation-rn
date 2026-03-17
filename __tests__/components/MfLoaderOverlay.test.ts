@@ -11,47 +11,38 @@ describe('MfLoaderOverlay', () => {
 
     it('GlobalLoaderOverlay returns null when loaderCount is 0', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { GlobalLoaderOverlay } = require('../../src/components/MfLoaderOverlay');
         const { LoaderState } = require('../../src/helpers/observable');
         LoaderState.loaderCount = 0;
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(GlobalLoaderOverlay));
-        });
+        const { toJSON } = render(React.createElement(GlobalLoaderOverlay));
 
-        expect(tree.toJSON()).toBeNull();
+        expect(toJSON()).toBeNull();
     });
 
     it('GlobalLoaderOverlay renders when loaderCount > 0', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { GlobalLoaderOverlay } = require('../../src/components/MfLoaderOverlay');
         const { LoaderState } = require('../../src/helpers/observable');
         LoaderState.loaderCount = 1;
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(GlobalLoaderOverlay));
-        });
+        const { toJSON } = render(React.createElement(GlobalLoaderOverlay));
 
-        expect(tree.toJSON()).not.toBeNull();
+        expect(toJSON()).not.toBeNull();
         // Reset
         LoaderState.loaderCount = 0;
     });
 
     it('MfLoaderOverlay has absolute positioning for full screen overlay', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfLoaderOverlay } = require('../../src/components/MfLoaderOverlay');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(React.createElement(MfLoaderOverlay));
-        });
+        const { toJSON } = render(React.createElement(MfLoaderOverlay));
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const flatStyle = [].concat(...[json.props.style].flat(Infinity));
         expect(flatStyle).toContainEqual(
             expect.objectContaining({

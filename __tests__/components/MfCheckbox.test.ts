@@ -39,17 +39,14 @@ describe('MfCheckbox', () => {
 
     it('renders label text', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfCheckbox } = require('../../src/components/MfCheckbox');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfCheckbox, { label: 'Accept terms' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfCheckbox, { label: 'Accept terms' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const texts = findAllByType(json, 'Text');
         const labelText = texts.find((t: any) =>
             t.children?.includes('Accept terms'),
@@ -59,55 +56,46 @@ describe('MfCheckbox', () => {
 
     it('shows check icon when value is true', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfCheckbox } = require('../../src/components/MfCheckbox');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfCheckbox, { value: true, label: 'Check' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfCheckbox, { value: true, label: 'Check' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const icon = findByType(json, 'FontAwesomeIcon');
         expect(icon).not.toBeNull();
     });
 
     it('hides check icon when value is false', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfCheckbox } = require('../../src/components/MfCheckbox');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(MfCheckbox, { value: false, label: 'Check' }),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(MfCheckbox, { value: false, label: 'Check' }),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         const icon = findByType(json, 'FontAwesomeIcon');
         expect(icon).toBeNull();
     });
 
     it('renders children with margin wrapper', () => {
         const React = require('react');
-        const renderer = require('react-test-renderer');
+        const { render } = require('@testing-library/react-native/pure');
         const { MfCheckbox } = require('../../src/components/MfCheckbox');
 
-        let tree: any;
-        renderer.act(() => {
-            tree = renderer.create(
-                React.createElement(
-                    MfCheckbox,
-                    { label: 'Parent' },
-                    React.createElement('View', { testID: 'child' }),
-                ),
-            );
-        });
+        const { toJSON } = render(
+            React.createElement(
+                MfCheckbox,
+                { label: 'Parent' },
+                React.createElement('View', { testID: 'child' }),
+            ),
+        );
 
-        const json = tree.toJSON();
+        const json = toJSON();
         // Find the children wrapper view with marginLeft
         const views = findAllByType(json, 'View');
         const childWrapper = views.find((v: any) => {

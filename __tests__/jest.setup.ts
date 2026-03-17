@@ -13,3 +13,12 @@ global.setImmediate = ((fn: Function, ...args: any[]) => {
 
 // Suppress React act() environment warning
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+// Suppress react-test-renderer deprecation warning (React 19+).
+// RTLRN still requires react-test-renderer internally; once RTLRN drops
+// that dependency, remove react-test-renderer and this suppression.
+const _origError = console.error;
+console.error = (...args: any[]) => {
+    if (typeof args[0] === 'string' && args[0].includes('react-test-renderer is deprecated')) return;
+    _origError.apply(console, args);
+};

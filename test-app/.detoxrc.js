@@ -38,9 +38,12 @@ module.exports = {
     devices: {
         simulator: {
             type: 'ios.simulator',
-            device: {
-                type: process.env.DETOX_IOS_DEVICE || 'iPhone 17 Pro',
-            },
+            device: process.env.DETOX_IOS_UDID
+                ? { id: process.env.DETOX_IOS_UDID }
+                : {
+                    type: process.env.DETOX_IOS_DEVICE || 'iPhone 17 Pro',
+                    os: process.env.DETOX_IOS_VERSION || 'iOS 26.3',
+                },
         },
         emulator: {
             type: 'android.emulator',

@@ -1,5 +1,4 @@
 // Test the logic of useMfSafeAreaInsets by calling the hook in a minimal React context
-import React from 'react';
 
 // We need to test useMfSafeAreaInsets which uses useSafeAreaInsets (mocked)
 // and returns filtered insets. We'll test the logic directly.
@@ -14,16 +13,15 @@ describe('useMfSafeAreaInsets', () => {
     // Helper to call hook in a React context
     function callHook(applyInsets: Parameters<typeof useMfSafeAreaInsets>[0]) {
         let result: ReturnType<typeof useMfSafeAreaInsets>;
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+
         function TestComponent() {
             result = useMfSafeAreaInsets(applyInsets);
             return null;
         }
 
-        // Use React's internal renderToString equivalent for hooks
-        const renderer = require('react-test-renderer');
-        renderer.act(() => {
-            renderer.create(React.createElement(TestComponent));
-        });
+        render(React.createElement(TestComponent));
         return result!;
     }
 
