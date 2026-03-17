@@ -3,7 +3,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, Insets, StyleProp, StyleSheet, ViewProps, ViewStyle } from 'react-native';
-import Animated, { AnimatedStyle, useDerivedValue, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { hasHeightOrFlexProps } from '../helpers/layout';
 
@@ -36,18 +36,20 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
     const viewRef = useRef<Animated.View>(null);
     const [distanceFromTop, setDistanceFromTop] = useState<number>(0);
     const [distanceFromBottom, setDistanceFromBottom] = useState<number>(0);
+    const distanceFromBottomSV = useSharedValue(0);
     const onLayout = useCallback(
         (force?: boolean) => {
             if (props.noLayoutCheck) return;
             if (props.layoutAfterTransition && !force) return;
             viewRef.current?.measure((_x, _y, _width, height, _pageX, pageY) => {
                 const screenHeight = Dimensions.get('window').height;
-                const distanceFromBottom = screenHeight - (pageY + height);
+                const distFromBottom = screenHeight - (pageY + height);
                 setDistanceFromTop(pageY);
 
                 // don't set distance from bottom if this is rendered off screen
                 if (pageY < screenHeight) {
-                    setDistanceFromBottom(distanceFromBottom);
+                    setDistanceFromBottom(distFromBottom);
+                    distanceFromBottomSV.value = distFromBottom;
                 }
             });
         },
@@ -104,32 +106,33 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
         [props.contentContainerStyle, computedInsets]
     );
 
-    // mirror plain JS values as SharedValues so useDerivedValue worklets react to changes
+    // mirror plain JS values as SharedValues so useAnimatedStyle worklets react to changes
     const localInsetsTopSV = useSharedValue(localInsets.top);
     const localInsetsBottomSV = useSharedValue(localInsets.bottom);
-    const distanceFromBottomSV = useSharedValue(distanceFromBottom);
     useEffect(() => { localInsetsTopSV.value = localInsets.top; }, [localInsets.top]);
     useEffect(() => { localInsetsBottomSV.value = localInsets.bottom; }, [localInsets.bottom]);
     useEffect(() => { distanceFromBottomSV.value = distanceFromBottom; }, [distanceFromBottom]);
 
-    // calculate our final top & bottom padding
-    const paddingTop = useDerivedValue(() => localInsetsTopSV.value);
-    const paddingBottom = useDerivedValue(() => {
-        const keyboardPadding = keyboardOverlapsView ? keyboardHeight : null;
-        return Math.max((keyboardPadding?.value ?? 0) - distanceFromBottomSV.value, localInsetsBottomSV.value);
+    // calculate animated padding on the UI thread
+    const animatedPaddingStyle = useAnimatedStyle(() => {
+        const kbHeight = keyboardOverlapsView ? (keyboardHeight?.value ?? 0) : 0;
+        return {
+            paddingTop: localInsetsTopSV.value,
+            paddingBottom: Math.max(kbHeight - distanceFromBottomSV.value, localInsetsBottomSV.value),
+        };
     });
 
-    const style = useMemo<StyleProp<AnimatedStyle<StyleProp<ViewStyle>>>>(() => {
+    const baseStyle = useMemo<StyleProp<ViewStyle>>(() => {
         const style = StyleSheet.flatten(props.style ?? {});
         return [
             !hasHeightOrFlexProps(style) && { flex: 1 },
             { backgroundColor: contentContainerStyle.backgroundColor ?? 'transparent' },
             props.center && { justifyContent: 'center', alignItems: 'center' },
             style,
-            paddingTop && { paddingTop },
-            paddingBottom && { paddingBottom }
         ];
-    }, [props.style, paddingTop, paddingBottom]);
+    }, [props.style]);
+
+    const style = useMemo(() => [baseStyle, animatedPaddingStyle], [baseStyle, animatedPaddingStyle]);
 
     return (
         <KeyboardHeightProvider>
