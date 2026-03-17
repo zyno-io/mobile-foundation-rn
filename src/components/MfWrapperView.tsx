@@ -2,7 +2,8 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Insets, Keyboard, LayoutAnimation, Platform, StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
+import { Dimensions, Insets, StyleProp, StyleSheet, ViewProps, ViewStyle } from 'react-native';
+import Animated, { AnimatedStyle, useDerivedValue, useSharedValue } from 'react-native-reanimated';
 
 import { hasHeightOrFlexProps } from '../helpers/layout';
 
@@ -27,30 +28,12 @@ interface MfWrapperViewProps extends MfWrapperViewCommonProps {
 
 export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
     const insets = useMfSafeAreaInsets(props.safeArea);
-    const { keyboardOverlapsView, KeyboardHeightProvider } = useMfKeyboardHeight(!props.noKeyboardAvoiding);
-
-    // get keyboard height from RN's built-in Keyboard API (works reliably across all environments)
-    const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
-    useEffect(() => {
-        if (!keyboardOverlapsView) return;
-
-        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
-        const showSub = Keyboard.addListener(showEvent, e => {
-            setNativeKeyboardHeight(e.endCoordinates.height);
-        });
-        const hideSub = Keyboard.addListener(hideEvent, () => {
-            setNativeKeyboardHeight(0);
-        });
-
-        return () => { showSub.remove(); hideSub.remove(); };
-    }, [keyboardOverlapsView]);
+    const { keyboardOverlapsView, keyboardHeight, KeyboardHeightProvider } = useMfKeyboardHeight(!props.noKeyboardAvoiding);
 
     // calculate our distance from top/bottom whenever we layout
     // if we're a child of something that's already pushed off the edge (like a nav bar or tab bar),
     // we want to make sure we're not accounting for insets in those contexts
-    const viewRef = useRef<View>(null);
+    const viewRef = useRef<Animated.View>(null);
     const [distanceFromTop, setDistanceFromTop] = useState<number>(0);
     const [distanceFromBottom, setDistanceFromBottom] = useState<number>(0);
     const onLayout = useCallback(
@@ -59,12 +42,12 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
             if (props.layoutAfterTransition && !force) return;
             viewRef.current?.measure((_x, _y, _width, height, _pageX, pageY) => {
                 const screenHeight = Dimensions.get('window').height;
-                const distFromBottom = screenHeight - (pageY + height);
+                const distanceFromBottom = screenHeight - (pageY + height);
                 setDistanceFromTop(pageY);
 
                 // don't set distance from bottom if this is rendered off screen
                 if (pageY < screenHeight) {
-                    setDistanceFromBottom(distFromBottom);
+                    setDistanceFromBottom(distanceFromBottom);
                 }
             });
         },
@@ -121,39 +104,38 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
         [props.contentContainerStyle, computedInsets]
     );
 
-    // calculate padding with keyboard height (ensures Yoga layout is correct)
-    const paddingTop = localInsets.top;
-    const paddingBottom = Math.max(nativeKeyboardHeight - distanceFromBottom, localInsets.bottom);
+    // mirror plain JS values as SharedValues so useDerivedValue worklets react to changes
+    const localInsetsTopSV = useSharedValue(localInsets.top);
+    const localInsetsBottomSV = useSharedValue(localInsets.bottom);
+    const distanceFromBottomSV = useSharedValue(distanceFromBottom);
+    useEffect(() => { localInsetsTopSV.value = localInsets.top; }, [localInsets.top]);
+    useEffect(() => { localInsetsBottomSV.value = localInsets.bottom; }, [localInsets.bottom]);
+    useEffect(() => { distanceFromBottomSV.value = distanceFromBottom; }, [distanceFromBottom]);
 
-    // animate layout changes for smooth keyboard transitions
-    const prevPaddingBottom = useRef(paddingBottom);
-    useEffect(() => {
-        if (prevPaddingBottom.current !== paddingBottom) {
-            LayoutAnimation.configureNext(LayoutAnimation.create(
-                250,
-                LayoutAnimation.Types.keyboard,
-                LayoutAnimation.Properties.opacity,
-            ));
-            prevPaddingBottom.current = paddingBottom;
-        }
-    }, [paddingBottom]);
+    // calculate our final top & bottom padding
+    const paddingTop = useDerivedValue(() => localInsetsTopSV.value);
+    const paddingBottom = useDerivedValue(() => {
+        const keyboardPadding = keyboardOverlapsView ? keyboardHeight : null;
+        return Math.max((keyboardPadding?.value ?? 0) - distanceFromBottomSV.value, localInsetsBottomSV.value);
+    });
 
-    const style = useMemo<StyleProp<ViewStyle>>(() => {
+    const style = useMemo<StyleProp<AnimatedStyle<StyleProp<ViewStyle>>>>(() => {
         const style = StyleSheet.flatten(props.style ?? {});
         return [
             !hasHeightOrFlexProps(style) && { flex: 1 },
             { backgroundColor: contentContainerStyle.backgroundColor ?? 'transparent' },
             props.center && { justifyContent: 'center', alignItems: 'center' },
             style,
-            { paddingTop, paddingBottom },
+            paddingTop && { paddingTop },
+            paddingBottom && { paddingBottom }
         ];
     }, [props.style, paddingTop, paddingBottom]);
 
     return (
         <KeyboardHeightProvider>
-            <View ref={viewRef} onLayout={onLayoutDb} style={style} testID={props.testID}>
+            <Animated.View ref={viewRef} onLayout={onLayoutDb} style={style} testID={props.testID}>
                 {props.children}
-            </View>
+            </Animated.View>
         </KeyboardHeightProvider>
     );
 };

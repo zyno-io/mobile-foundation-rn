@@ -56,7 +56,6 @@ e2e:ios:
   tags:
     - mac
   variables:
-    DETOX_IOS_DEVICE: iPhone 17 Pro
     SENTRY_DISABLE_AUTO_UPLOAD: "true"
   script:
     - |
@@ -76,6 +75,8 @@ e2e:ios:
     - bundle install
     - cd ios && LANG=en_US.UTF-8 pod install && cd ..
     - npx detox build -c ios.sim.release
+    # Disable hardware keyboard so the software keyboard appears and fires keyboard events
+    - defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
     - npx detox test -c ios.sim.release --headless
   artifacts:
     when: always
