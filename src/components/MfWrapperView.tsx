@@ -2,8 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Insets, LayoutAnimation, StyleProp, StyleSheet, ViewProps, ViewStyle } from 'react-native';
-import Animated, { runOnJS, useAnimatedReaction } from 'react-native-reanimated';
+import { Dimensions, Insets, Keyboard, LayoutAnimation, Platform, StyleProp, StyleSheet, View, ViewProps, ViewStyle } from 'react-native';
 
 import { hasHeightOrFlexProps } from '../helpers/layout';
 
@@ -28,23 +27,30 @@ interface MfWrapperViewProps extends MfWrapperViewCommonProps {
 
 export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
     const insets = useMfSafeAreaInsets(props.safeArea);
-    const { keyboardOverlapsView, keyboardHeight, KeyboardHeightProvider } = useMfKeyboardHeight(!props.noKeyboardAvoiding);
+    const { keyboardOverlapsView, KeyboardHeightProvider } = useMfKeyboardHeight(!props.noKeyboardAvoiding);
 
-    // sync keyboard height from UI thread to JS thread for Yoga layout
-    const [jsKeyboardHeight, setJsKeyboardHeight] = useState(0);
-    useAnimatedReaction(
-        () => (keyboardOverlapsView ? (keyboardHeight?.value ?? 0) : 0),
-        (current, previous) => {
-            if (current !== previous) {
-                runOnJS(setJsKeyboardHeight)(current);
-            }
-        }
-    );
+    // get keyboard height from RN's built-in Keyboard API (works reliably across all environments)
+    const [nativeKeyboardHeight, setNativeKeyboardHeight] = useState(0);
+    useEffect(() => {
+        if (!keyboardOverlapsView) return;
+
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+        const showSub = Keyboard.addListener(showEvent, e => {
+            setNativeKeyboardHeight(e.endCoordinates.height);
+        });
+        const hideSub = Keyboard.addListener(hideEvent, () => {
+            setNativeKeyboardHeight(0);
+        });
+
+        return () => { showSub.remove(); hideSub.remove(); };
+    }, [keyboardOverlapsView]);
 
     // calculate our distance from top/bottom whenever we layout
     // if we're a child of something that's already pushed off the edge (like a nav bar or tab bar),
     // we want to make sure we're not accounting for insets in those contexts
-    const viewRef = useRef<Animated.View>(null);
+    const viewRef = useRef<View>(null);
     const [distanceFromTop, setDistanceFromTop] = useState<number>(0);
     const [distanceFromBottom, setDistanceFromBottom] = useState<number>(0);
     const onLayout = useCallback(
@@ -115,9 +121,9 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
         [props.contentContainerStyle, computedInsets]
     );
 
-    // calculate padding with keyboard height from JS thread (ensures Yoga layout is correct)
+    // calculate padding with keyboard height (ensures Yoga layout is correct)
     const paddingTop = localInsets.top;
-    const paddingBottom = Math.max(jsKeyboardHeight - distanceFromBottom, localInsets.bottom);
+    const paddingBottom = Math.max(nativeKeyboardHeight - distanceFromBottom, localInsets.bottom);
 
     // animate layout changes for smooth keyboard transitions
     const prevPaddingBottom = useRef(paddingBottom);
@@ -145,9 +151,9 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
 
     return (
         <KeyboardHeightProvider>
-            <Animated.View ref={viewRef} onLayout={onLayoutDb} style={style} testID={props.testID}>
+            <View ref={viewRef} onLayout={onLayoutDb} style={style} testID={props.testID}>
                 {props.children}
-            </Animated.View>
+            </View>
         </KeyboardHeightProvider>
     );
 };
