@@ -75,8 +75,22 @@ e2e:ios:
     - bundle install
     - cd ios && LANG=en_US.UTF-8 pod install && cd ..
     - npx detox build -c ios.sim.release
-    # Disable hardware keyboard so the software keyboard appears and fires keyboard events
-    - defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+    # Disable hardware keyboard so the software keyboard appears and fires keyboard events.
+    # The global `defaults write` is not enough — modern Xcode stores the setting per-device
+    # in DevicePreferences:<UDID>, which takes precedence. Use PlistBuddy to update all devices.
+    - |
+      killall "Simulator" 2>/dev/null || true
+      xcrun simctl shutdown all 2>/dev/null || true
+      defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
+      PLIST="$HOME/Library/Preferences/com.apple.iphonesimulator.plist"
+      if /usr/libexec/PlistBuddy -c "Print :DevicePreferences" "$PLIST" &>/dev/null; then
+        /usr/libexec/PlistBuddy -c "Print :DevicePreferences" "$PLIST" \
+          | perl -lne 'print $1 if /^ (\S+) =/' \
+          | while read -r UDID; do
+              /usr/libexec/PlistBuddy -c "Set :DevicePreferences:${UDID}:ConnectHardwareKeyboard false" "$PLIST" 2>/dev/null \
+              || /usr/libexec/PlistBuddy -c "Add :DevicePreferences:${UDID}:ConnectHardwareKeyboard bool false" "$PLIST"
+            done
+      fi
     - npx detox test -c ios.sim.release --headless --take-screenshots failing
   artifacts:
     when: always
