@@ -77,7 +77,7 @@ e2e:ios:
     - npx detox build -c ios.sim.release
     # Disable hardware keyboard so the software keyboard appears and fires keyboard events
     - defaults write com.apple.iphonesimulator ConnectHardwareKeyboard -bool false
-    - npx detox test -c ios.sim.release --headless
+    - npx detox test -c ios.sim.release --headless --take-screenshots failing
   artifacts:
     when: always
     paths:
@@ -126,7 +126,7 @@ e2e:android:
     - cd test-app
     - yarn --immutable
     - npx detox build -c android.emu.release
-    - npx detox test -c android.emu.release --headless
+    - npx detox test -c android.emu.release --headless --take-screenshots failing
     - adb emu kill 2>/dev/null || true
   artifacts:
     when: always
