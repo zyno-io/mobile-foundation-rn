@@ -3,7 +3,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, Insets, StyleProp, StyleSheet, ViewProps, ViewStyle } from 'react-native';
-import Animated, { AnimatedStyle, useDerivedValue } from 'react-native-reanimated';
+import Animated, { AnimatedStyle, useDerivedValue, useSharedValue } from 'react-native-reanimated';
 
 import { hasHeightOrFlexProps } from '../helpers/layout';
 
@@ -104,11 +104,19 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
         [props.contentContainerStyle, computedInsets]
     );
 
+    // mirror plain JS values as SharedValues so useDerivedValue worklets react to changes
+    const localInsetsTopSV = useSharedValue(localInsets.top);
+    const localInsetsBottomSV = useSharedValue(localInsets.bottom);
+    const distanceFromBottomSV = useSharedValue(distanceFromBottom);
+    useEffect(() => { localInsetsTopSV.value = localInsets.top; }, [localInsets.top]);
+    useEffect(() => { localInsetsBottomSV.value = localInsets.bottom; }, [localInsets.bottom]);
+    useEffect(() => { distanceFromBottomSV.value = distanceFromBottom; }, [distanceFromBottom]);
+
     // calculate our final top & bottom padding
-    const paddingTop = useDerivedValue(() => localInsets.top);
+    const paddingTop = useDerivedValue(() => localInsetsTopSV.value);
     const paddingBottom = useDerivedValue(() => {
         const keyboardPadding = keyboardOverlapsView ? keyboardHeight : null;
-        return Math.max((keyboardPadding?.value ?? 0) - distanceFromBottom, localInsets.bottom);
+        return Math.max((keyboardPadding?.value ?? 0) - distanceFromBottomSV.value, localInsetsBottomSV.value);
     });
 
     const style = useMemo<StyleProp<AnimatedStyle<StyleProp<ViewStyle>>>>(() => {

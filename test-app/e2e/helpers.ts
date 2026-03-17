@@ -36,8 +36,8 @@ export async function goHome() {
 
 /** Wait for keyboard to appear and settle */
 export async function waitForKeyboard() {
-    // Allow time for keyboard animation to complete
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // Allow time for keyboard animation + layout recalculation to complete
+    await new Promise(resolve => setTimeout(resolve, 1500));
 }
 
 /** Wait for keyboard to dismiss and settle */
