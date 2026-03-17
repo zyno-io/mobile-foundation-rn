@@ -74,7 +74,7 @@ e2e:ios:
     - cd test-app
     - yarn --immutable
     - bundle install
-    - cd ios && LANG=en_US.UTF-8 pod install --deployment && cd ..
+    - cd ios && LANG=en_US.UTF-8 pod install && cd ..
     - npx detox build -c ios.sim.release
     - npx detox test -c ios.sim.release --headless
   artifacts:
