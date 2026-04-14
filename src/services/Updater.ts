@@ -1,10 +1,10 @@
-import { observable, runInAction } from 'mobx';
 import * as Updates from 'expo-updates';
+import { observable, runInAction } from 'mobx';
 import { useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 
 import { getFoundationConfig } from '../config';
 import { useAppActivatedEffect } from '../hooks/useAppStateEffect';
-
 import { AppMeta } from './AppMeta';
 import { createLogger } from './Logger';
 
@@ -19,6 +19,8 @@ export const Updater = {
 
     _updateCheckPromise: null as Promise<boolean> | null,
     _shouldDeferUpdate: null as (() => boolean) | null,
+    _installTimeout: null as ReturnType<typeof setTimeout> | null,
+    _reloadInFlight: false,
 
     setUpdateDeferralListener(listener: (() => boolean) | null) {
         Updater._shouldDeferUpdate = listener;
@@ -71,11 +73,15 @@ export const Updater = {
 
             useEffect(() => {
                 let text: string | null = null;
-                if (updates.isDownloading) {
+                if (updates.isStartupProcedureRunning) {
+                    text = 'Starting up...';
+                } else if (updates.isRestarting) {
+                    text = 'Restarting to install update...';
+                } else if (updates.isDownloading) {
                     text = 'Downloading update...';
                 } else if (updates.isUpdatePending) {
                     text = 'Installing update...';
-                    Updater.installUpdate();
+                    Updater.scheduleInstallUpdate();
                 } else if (updates.isChecking && !timedOut) {
                     text = 'Checking for updates...';
                 }
@@ -119,12 +125,31 @@ export const Updater = {
         return true;
     },
 
+    scheduleInstallUpdate(delayMs = 250) {
+        if (Updater._reloadInFlight) return;
+        if (Updater._installTimeout) return;
+        logger.info('Scheduling update install', { delayMs });
+        Updater._installTimeout = setTimeout(() => {
+            Updater._installTimeout = null;
+            Updater.installUpdate();
+        }, delayMs);
+    },
+
     installUpdate: () => {
+        if (Updater._reloadInFlight) return;
         if (Updater.shouldDeferUpdate()) {
             logger.info('Deferring update install');
             return;
         }
+        if (AppState.currentState !== 'active') {
+            logger.info('Deferring update install until app is active', { appState: AppState.currentState });
+            return;
+        }
+        Updater._reloadInFlight = true;
         logger.info('Installing update');
-        Updates.reloadAsync();
+        Updates.reloadAsync().catch(err => {
+            Updater._reloadInFlight = false;
+            logger.error('Failed to install update', err);
+        });
     }
 };
