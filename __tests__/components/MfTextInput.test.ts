@@ -150,4 +150,26 @@ describe('MfTextInput', () => {
         const hasIconPadding = flatStyle.some((s: any) => s?.paddingLeft === 36);
         expect(hasIconPadding).toBe(true);
     });
+
+    it('honors configured input defaults (borderRadius, background)', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(
+            createMockConfig({
+                defaults: { input: { borderRadius: 16, backgroundColorKey: 'surface' } },
+            }),
+        );
+        const { MfTextInput } = require('../../src/components/MfTextInput');
+
+        const { toJSON } = render(React.createElement(MfTextInput));
+
+        const input = findByType(toJSON(), 'TextInput');
+        const flatStyle = [].concat(...[input.props.style].flat(Infinity));
+        const inputStyle = flatStyle.find((s: any) => s?.borderRadius !== undefined);
+        expect(inputStyle).toMatchObject({
+            borderRadius: 16,
+            backgroundColor: '#f5f5f5', // surface
+        });
+    });
 });

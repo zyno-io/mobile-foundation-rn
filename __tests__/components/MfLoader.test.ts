@@ -76,4 +76,40 @@ describe('MfLoader', () => {
             }),
         );
     });
+
+    it('defaults the background wrapper color when none configured', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { MfLoader } = require('../../src/components/MfLoader');
+
+        const { toJSON } = render(
+            React.createElement(MfLoader, { background: true }),
+        );
+
+        const json = toJSON();
+        const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
+        const bgStyle = flatStyle.find((s: any) => s?.backgroundColor);
+        expect(bgStyle.backgroundColor).toBe('rgba(255, 255, 255, 0.25)');
+    });
+
+    it('uses configured loader background color', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(
+            createMockConfig({
+                defaults: { loader: { backgroundColor: 'rgba(10, 20, 30, 0.5)' } },
+            }),
+        );
+        const { MfLoader } = require('../../src/components/MfLoader');
+
+        const { toJSON } = render(
+            React.createElement(MfLoader, { background: true }),
+        );
+
+        const json = toJSON();
+        const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
+        const bgStyle = flatStyle.find((s: any) => s?.backgroundColor);
+        expect(bgStyle.backgroundColor).toBe('rgba(10, 20, 30, 0.5)');
+    });
 });

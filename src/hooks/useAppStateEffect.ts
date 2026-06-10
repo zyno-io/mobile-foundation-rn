@@ -13,23 +13,25 @@ const hasLaunchedSub = AppState.addEventListener('change', nextState => {
     }
 });
 
-export function useAppStateEffect(effect: AppStateEffect) {
+export function useAppStateEffect(effect: AppStateEffect, deps?: React.DependencyList) {
     React.useEffect(() => {
         const subscription = AppState.addEventListener('change', nextState => {
             if (hasLaunched) setTimeout(() => effect(nextState), 0);
         });
         return () => subscription.remove();
-    }, [effect]);
+        // When `deps` is omitted, behave exactly as before (re-subscribe on every `effect` change).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, deps ?? [effect]);
 }
 
-export function useAppActivatedEffect(effect: () => void) {
+export function useAppActivatedEffect(effect: () => void, deps?: React.DependencyList) {
     useAppStateEffect(nextState => {
         if (nextState === 'active') effect();
-    });
+    }, deps);
 }
 
-export function useAppDeactivatedEvent(effect: () => void) {
+export function useAppDeactivatedEvent(effect: () => void, deps?: React.DependencyList) {
     useAppStateEffect(nextState => {
         if (nextState === 'background') effect();
-    });
+    }, deps);
 }

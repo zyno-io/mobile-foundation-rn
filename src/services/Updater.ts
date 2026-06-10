@@ -46,13 +46,7 @@ export const Updater = {
             if (AppMeta.isDevelopment) return;
 
             AppMeta.load().then(() => {
-                Updates.setExtraParamAsync('deviceid', AppMeta.deviceId)
-                    .catch(err => {
-                        logger.error('Failed to set extra param', err);
-                    })
-                    .finally(() => {
-                        Updater.downloadUpdate();
-                    });
+                Updater.downloadUpdate();
             });
         }, []);
 

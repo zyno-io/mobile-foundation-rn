@@ -121,6 +121,29 @@ export default RootLayout;
 | `deepLinkHandler` | `(url: string) => void` | No | Handler for incoming deep links |
 | `supportContact` | `string` | No | Contact info shown in error dialogs |
 | `userErrorClasses` | `ErrorClass[]` | No | Error classes whose messages are shown to users |
+| `defaults` | `FoundationDefaults` | No | Per-component style defaults (see below) |
+
+### Component defaults (`config.defaults`)
+
+Optional overrides for the non-color style constants the components otherwise hardcode. Every field is optional — omit one and the library's built-in value is used, so existing apps are unaffected. `*ColorKey` fields name a key in your `ColorScheme` (resolved at render via the active theme):
+
+```typescript
+defaults: {
+    fontFamily: 'Lato',                 // MfText (and anything that renders it); default 'Inter'
+    icon: { colorKey: 'white' },        // default color for a bare <MfIcon> with no `color`; default 'text'
+    button: {
+        backgroundColorKey: 'white',    // default 'secondaryButtonBackground'
+        borderWidth: 1,                 // default 0
+        borderColorKey: 'cardBorder',
+        primaryBorderColorKey: 'primaryButtonBackground',
+        gap: 6,                         // icon↔text gap; default 0
+        titleFontSize: 16,              // default 14
+        iconColorKey: 'white',          // in-button icon color; default derives from title color
+    },
+    input: { borderRadius: 12, backgroundColorKey: 'inputBackground' },  // defaults 8 / 'cardBackground'
+    loader: { backgroundColor: 'transparent', overlayBackgroundColorKey: 'background' },
+}
+```
 
 ## Core Concepts
 

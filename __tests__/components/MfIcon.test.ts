@@ -61,4 +61,36 @@ describe('MfIcon', () => {
         const json = toJSON();
         expect(json.props.size).toBe(16);
     });
+
+    it('uses configured default colorKey when no color prop given', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(
+            createMockConfig({ defaults: { icon: { colorKey: 'accent' } } }),
+        );
+        const { MfIcon } = require('../../src/components/MfIcon');
+
+        const { toJSON } = render(
+            React.createElement(MfIcon, { icon: 'star' }),
+        );
+
+        expect(toJSON().props.color).toBe('#007AFF'); // accent
+    });
+
+    it('explicit color prop overrides configured colorKey', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(
+            createMockConfig({ defaults: { icon: { colorKey: 'accent' } } }),
+        );
+        const { MfIcon } = require('../../src/components/MfIcon');
+
+        const { toJSON } = render(
+            React.createElement(MfIcon, { icon: 'star', color: 'red' }),
+        );
+
+        expect(toJSON().props.color).toBe('red');
+    });
 });

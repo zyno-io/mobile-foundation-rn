@@ -118,4 +118,70 @@ describe('MfButton', () => {
         const hasDisabled = flatStyle.some((s: any) => s?.opacity === 0.5);
         expect(hasDisabled).toBe(true);
     });
+
+    it('honors configured button defaults (background, border, gap)', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(
+            createMockConfig({
+                defaults: {
+                    button: {
+                        backgroundColorKey: 'surface',
+                        borderWidth: 1,
+                        borderColorKey: 'cardBorder',
+                        gap: 8,
+                    },
+                },
+            }),
+        );
+        const { MfButton } = require('../../src/components/MfButton');
+
+        const { toJSON } = render(React.createElement(MfButton, { text: 'Go' }));
+
+        const json = toJSON();
+        const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
+        const buttonStyle = flatStyle.find((s: any) => s?.gap !== undefined);
+        expect(buttonStyle).toMatchObject({
+            backgroundColor: '#f5f5f5', // surface
+            borderWidth: 1,
+            borderColor: '#ddd', // cardBorder
+            gap: 8,
+        });
+    });
+
+    it('uses iconColorKey for the default icon color', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(
+            createMockConfig({ defaults: { button: { iconColorKey: 'accent' } } }),
+        );
+        const { MfButton } = require('../../src/components/MfButton');
+
+        const { toJSON } = render(
+            React.createElement(MfButton, { icon: 'plus', text: 'Add' }),
+        );
+
+        const icon = findByType(toJSON(), 'FontAwesomeIcon');
+        expect(icon.props.color).toBe('#007AFF'); // accent
+    });
+
+    it('applies configured titleFontSize to the label', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(
+            createMockConfig({ defaults: { button: { titleFontSize: 18 } } }),
+        );
+        const { MfButton } = require('../../src/components/MfButton');
+
+        const { toJSON } = render(React.createElement(MfButton, { text: 'Go' }));
+
+        const texts = findAllByType(toJSON(), 'Text');
+        const label = texts.find((t: any) => t.children?.includes('Go'));
+        const flatStyle = [].concat(...[label.props.style].flat(Infinity).filter(Boolean));
+        const hasFontSize = flatStyle.some((s: any) => s?.fontSize === 18);
+        expect(hasFontSize).toBe(true);
+    });
 });

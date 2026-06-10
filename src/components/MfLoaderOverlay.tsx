@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { observer } from 'mobx-react-lite';
 
+import { getFoundationConfig } from '../config';
 import { createStyles, useStyles } from '../helpers/styles';
 import { LoaderState } from '../helpers/observable';
 
@@ -24,9 +25,12 @@ export const GlobalLoaderOverlay = observer(() => {
     return <MfLoaderOverlay />;
 });
 
-const styleGen = createStyles(() => ({
+const styleGen = createStyles(colors => ({
     solo: {
-        backgroundColor: 'rgba(0, 0, 0, 0.3)'
+        backgroundColor: (() => {
+            const key = getFoundationConfig().defaults?.loader?.overlayBackgroundColorKey;
+            return key ? colors[key] : 'rgba(0, 0, 0, 0.3)';
+        })()
     },
     outerWrapper: {
         position: 'absolute',

@@ -1,6 +1,7 @@
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import { FontAwesomeIcon, FontAwesomeIconStyle } from '@fortawesome/react-native-fontawesome';
 
+import { getFoundationConfig } from '../config';
 import { useColors } from '../helpers/styles';
 
 export interface MfIconProps {
@@ -13,5 +14,7 @@ export interface MfIconProps {
 
 export const MfIcon: React.FC<MfIconProps> = props => {
     const colors = useColors();
-    return <FontAwesomeIcon icon={props.icon} size={props.size ?? 16} color={props.color || colors.text} style={props.style} testID={props.testID} />;
+    const colorKey = getFoundationConfig().defaults?.icon?.colorKey;
+    const defaultColor = colorKey ? colors[colorKey] : colors.text;
+    return <FontAwesomeIcon icon={props.icon} size={props.size ?? 16} color={props.color || defaultColor} style={props.style} testID={props.testID} />;
 };

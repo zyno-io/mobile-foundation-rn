@@ -74,7 +74,7 @@ const styleGen = createStyles(() => ({
     },
     wrapper: {},
     wrapperBackground: {
-        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+        backgroundColor: getFoundationConfig().defaults?.loader?.backgroundColor ?? 'rgba(255, 255, 255, 0.25)',
         borderRadius: '50%' as unknown as number,
         justifyContent: 'center',
         alignItems: 'center'

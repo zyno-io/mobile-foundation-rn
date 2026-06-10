@@ -54,4 +54,40 @@ describe('MfLoaderOverlay', () => {
             }),
         );
     });
+
+    it('solo overlay defaults to a translucent black background', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { MfLoaderOverlay } = require('../../src/components/MfLoaderOverlay');
+
+        const { toJSON } = render(
+            React.createElement(MfLoaderOverlay, { solo: true }),
+        );
+
+        const json = toJSON();
+        const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
+        const bgStyle = flatStyle.find((s: any) => s?.backgroundColor);
+        expect(bgStyle.backgroundColor).toBe('rgba(0, 0, 0, 0.3)');
+    });
+
+    it('solo overlay uses configured overlayBackgroundColorKey', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(
+            createMockConfig({
+                defaults: { loader: { overlayBackgroundColorKey: 'accent' } },
+            }),
+        );
+        const { MfLoaderOverlay } = require('../../src/components/MfLoaderOverlay');
+
+        const { toJSON } = render(
+            React.createElement(MfLoaderOverlay, { solo: true }),
+        );
+
+        const json = toJSON();
+        const flatStyle = [].concat(...[json.props.style].flat(Infinity).filter(Boolean));
+        const bgStyle = flatStyle.find((s: any) => s?.backgroundColor);
+        expect(bgStyle.backgroundColor).toBe('#007AFF'); // accent
+    });
 });

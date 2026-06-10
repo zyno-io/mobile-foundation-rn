@@ -66,4 +66,32 @@ describe('MfText', () => {
         expect(json.props.style.alignItems).toBe('center');
         expect(json.props.style.justifyContent).toBe('center');
     });
+
+    it('defaults fontFamily to Inter', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { MfText } = require('../../src/components/MfText');
+
+        const { toJSON } = render(React.createElement(MfText, null, 'Hi'));
+
+        const json = toJSON();
+        const flatStyle = [].concat(...[json.props.style].flat(Infinity));
+        const fontStyle = flatStyle.find((s: any) => s?.fontFamily);
+        expect(fontStyle.fontFamily).toBe('Inter');
+    });
+
+    it('uses configured default fontFamily', () => {
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+        const { configureFoundation } = require('../../src/config');
+        configureFoundation(createMockConfig({ defaults: { fontFamily: 'Roboto' } }));
+        const { MfText } = require('../../src/components/MfText');
+
+        const { toJSON } = render(React.createElement(MfText, null, 'Hi'));
+
+        const json = toJSON();
+        const flatStyle = [].concat(...[json.props.style].flat(Infinity));
+        const fontStyle = flatStyle.find((s: any) => s?.fontFamily);
+        expect(fontStyle.fontFamily).toBe('Roboto');
+    });
 });

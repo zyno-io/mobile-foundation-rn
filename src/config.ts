@@ -4,6 +4,29 @@ import { StatusBarStyle } from 'react-native';
 
 import { ColorScheme } from './types';
 
+/**
+ * Optional component style defaults. Every field is optional; omitting one keeps
+ * the library's built-in value, so existing consumers are unaffected. `*ColorKey`
+ * fields name a key in your `ColorScheme` (resolved at render via the active theme).
+ */
+export interface FoundationDefaults {
+    /** Default fontFamily for `MfText` (and anything that renders it). Falls back to 'Inter'. */
+    fontFamily?: string;
+    /** Default color for a bare `<MfIcon>` with no explicit `color`. Falls back to `text`. */
+    icon?: { colorKey?: string };
+    button?: {
+        backgroundColorKey?: string;
+        borderWidth?: number;
+        borderColorKey?: string;
+        primaryBorderColorKey?: string;
+        gap?: number;
+        titleFontSize?: number;
+        iconColorKey?: string;
+    };
+    input?: { borderRadius?: number; backgroundColorKey?: string };
+    loader?: { backgroundColor?: string; overlayBackgroundColorKey?: string };
+}
+
 export interface FoundationConfig {
     colors: {
         light: ColorScheme;
@@ -32,6 +55,8 @@ export interface FoundationConfig {
     supportContact?: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     userErrorClasses?: (new (...args: any[]) => Error)[];
+    /** Optional per-component style defaults (font, button, input, icon, loader). */
+    defaults?: FoundationDefaults;
 }
 
 let _config: FoundationConfig | null = null;

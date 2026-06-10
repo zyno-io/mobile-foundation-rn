@@ -11,6 +11,7 @@ import {
     ViewStyle
 } from 'react-native';
 
+import { getFoundationConfig } from '../config';
 import { formatCurrency, formatPhone } from '../helpers/formatting';
 import { createStyles, useStyles } from '../helpers/styles';
 import { useNextTextInputRef } from '../hooks/useNextTextInputRef';
@@ -128,7 +129,9 @@ export const MfTextInput = React.forwardRef<TextInput, TextInputProps & MfTextIn
     );
 });
 
-const styleGen = createStyles(colors => ({
+const styleGen = createStyles(colors => {
+    const d = getFoundationConfig().defaults?.input;
+    return {
     wrapper: {},
     inputWrapper: {
         flexDirection: 'row',
@@ -149,8 +152,8 @@ const styleGen = createStyles(colors => ({
     input: {
         flex: 1,
         padding: 14,
-        borderRadius: 8,
-        backgroundColor: colors.cardBackground,
+        borderRadius: d?.borderRadius ?? 8,
+        backgroundColor: d?.backgroundColorKey ? colors[d.backgroundColorKey] : colors.cardBackground,
         color: colors.inputText,
         fontSize: 16,
         fontFamily: 'Inter_400Regular'
@@ -165,4 +168,5 @@ const styleGen = createStyles(colors => ({
         opacity: 0.5
     },
     inputFocused: {}
-}));
+    };
+});

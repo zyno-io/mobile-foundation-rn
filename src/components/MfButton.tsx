@@ -3,7 +3,8 @@ import React from 'react';
 import { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { Pressable, PressableProps } from 'react-native-gesture-handler';
 
-import { createStyles, useStyles } from '../helpers/styles';
+import { getFoundationConfig } from '../config';
+import { createStyles, useColors, useStyles } from '../helpers/styles';
 
 import { MfIcon, MfIconProps } from './MfIcon';
 import { MfText } from './MfText';
@@ -42,6 +43,9 @@ export const MfButton: React.FC<MfButtonProps> = props => {
         ...rest
     } = props;
     const styles = useStyles(styleGen);
+    const colors = useColors();
+    const iconColorKey = getFoundationConfig().defaults?.button?.iconColorKey;
+    const defaultIconColor = iconColorKey ? colors[iconColorKey] : props.primary ? styles.primaryButtonTitle.color : styles.buttonTitle.color;
 
     return (
         <Pressable
@@ -59,7 +63,7 @@ export const MfButton: React.FC<MfButtonProps> = props => {
                 <MfIcon
                     icon={icon}
                     size={iconSize ?? 16}
-                    color={typeof iconColor === 'string' ? iconColor : props.primary ? styles.primaryButtonTitle.color : styles.buttonTitle.color}
+                    color={typeof iconColor === 'string' ? iconColor : defaultIconColor}
                     style={iconStyle}
                 />
             )}
@@ -69,30 +73,37 @@ export const MfButton: React.FC<MfButtonProps> = props => {
     );
 };
 
-const styleGen = createStyles(colors => ({
-    button: {
-        backgroundColor: colors.secondaryButtonBackground,
-        padding: 12,
-        borderRadius: 6,
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'row'
-    },
-    pressed: {
-        opacity: 0.7
-    },
-    primaryButton: {
-        backgroundColor: colors.primaryButtonBackground
-    },
-    buttonTitle: {
-        color: colors.secondaryButtonText,
-        fontSize: 14,
-        fontWeight: '500'
-    },
-    primaryButtonTitle: {
-        color: colors.primaryButtonText
-    },
-    disabled: {
-        opacity: 0.5
-    }
-}));
+const styleGen = createStyles(colors => {
+    const d = getFoundationConfig().defaults?.button;
+    return {
+        button: {
+            backgroundColor: d?.backgroundColorKey ? colors[d.backgroundColorKey] : colors.secondaryButtonBackground,
+            borderWidth: d?.borderWidth ?? 0,
+            borderColor: d?.borderColorKey ? colors[d.borderColorKey] : 'transparent',
+            padding: 12,
+            borderRadius: 6,
+            gap: d?.gap ?? 0,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row'
+        },
+        pressed: {
+            opacity: 0.7
+        },
+        primaryButton: {
+            backgroundColor: colors.primaryButtonBackground,
+            borderColor: d?.primaryBorderColorKey ? colors[d.primaryBorderColorKey] : d?.borderColorKey ? colors[d.borderColorKey] : 'transparent'
+        },
+        buttonTitle: {
+            color: colors.secondaryButtonText,
+            fontSize: d?.titleFontSize ?? 14,
+            fontWeight: '500' as const
+        },
+        primaryButtonTitle: {
+            color: colors.primaryButtonText
+        },
+        disabled: {
+            opacity: 0.5
+        }
+    };
+});

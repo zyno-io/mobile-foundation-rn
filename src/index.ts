@@ -1,6 +1,6 @@
 // Configuration
 export { configureFoundation } from './config';
-export type { FoundationConfig } from './config';
+export type { FoundationConfig, FoundationDefaults } from './config';
 export type { ColorScheme, CreateColorScheme } from './types';
 
 // Components
