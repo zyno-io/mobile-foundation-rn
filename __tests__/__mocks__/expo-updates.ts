@@ -9,6 +9,7 @@ export const checkForUpdateAsync = jest.fn(() => Promise.resolve({ isAvailable: 
 export const fetchUpdateAsync = jest.fn(() => Promise.resolve({ isNew: false }));
 export const reloadAsync = jest.fn(() => Promise.resolve());
 export const setExtraParamAsync = jest.fn(() => Promise.resolve());
+export const setUpdateRequestHeadersOverride = jest.fn();
 export const useUpdates = jest.fn(() => ({
     isChecking: false,
     isDownloading: false,

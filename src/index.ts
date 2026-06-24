@@ -68,4 +68,5 @@ export { createLogger, showAlertDialog, showCommunicationError, UserError } from
 export type { Logger } from './services/Logger';
 export { SentryHelper } from './services/Sentry';
 export { Updater } from './services/Updater';
+export type { INativeUpdateStatus } from './services/Updater';
 

@@ -50,5 +50,6 @@ export const FlatList = 'FlatList';
 
 export const Linking = {
     getInitialURL: jest.fn(() => Promise.resolve(null)),
+    openURL: jest.fn(() => Promise.resolve()),
     addEventListener: jest.fn(() => ({ remove: jest.fn() })),
 };

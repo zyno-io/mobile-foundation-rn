@@ -69,7 +69,7 @@ function getLog() {
     _realConsoleError = console.error;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const globalConsole: { __patched__?: boolean } = global.console as any;
+    const globalConsole: { __patched__?: boolean } = globalThis.console as any;
     if (!globalConsole.__patched__) {
         _log.patchConsole();
         globalConsole.__patched__ = true;

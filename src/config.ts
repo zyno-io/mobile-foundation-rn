@@ -38,6 +38,10 @@ export interface FoundationConfig {
         SENTRY_DSN?: string;
         LOGGER_URL?: string;
         CDN_URL?: string;
+        /** Mobile Update Server — required for native-update checks + MUS-targeted OTA. */
+        MUS_URL?: string;
+        MUS_APP_ID?: string;
+        MUS_CHANNEL?: string;
     };
     icons: {
         check: IconProp;
