@@ -163,7 +163,7 @@ function describeErr(err: Error): IErrorDescription {
         message: err.message,
         stack: err.stack,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        cause: 'cause' in err ? describeErr(err.cause as any) : undefined
+        cause: err.cause ? describeErr(err.cause as any) : undefined
     };
 }
 
