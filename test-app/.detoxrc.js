@@ -42,7 +42,10 @@ module.exports = {
                 ? { id: process.env.DETOX_IOS_UDID }
                 : {
                     type: process.env.DETOX_IOS_DEVICE || 'iPhone 17 Pro',
-                    os: process.env.DETOX_IOS_VERSION || 'iOS 26.3',
+                    // No explicit `os` by default: bind to whatever iOS runtime is
+                    // installed so runner Xcode updates don't break device lookup.
+                    // Set DETOX_IOS_VERSION to force a specific runtime.
+                    ...(process.env.DETOX_IOS_VERSION ? { os: process.env.DETOX_IOS_VERSION } : {}),
                 },
         },
         emulator: {
