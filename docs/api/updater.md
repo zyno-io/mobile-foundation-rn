@@ -5,20 +5,13 @@ Manages two kinds of app updates:
 - **OTA updates** via `expo-updates` — JavaScript bundle updates, checked on launch and when the app returns to the foreground.
 - **Native (app-store) updates** via the **Mobile Update Server (MUS)** — detects when a newer binary is available in the store and, when the server marks it required, forces the user to update.
 
-It also keeps **MUS-targeted OTA request headers** (channel / device / user id) in sync so the update server can target rollouts by channel, device, and signed-in user.
+It also applies **device-targeted OTA request headers** (channel / device id) so the update server can target rollouts by channel and device.
 
 ## Usage
 
 The Updater runs automatically when initialized via `useSetupFoundation`. The `Updater._useHook()` is invoked at the start of `useSetupFoundation`, setting up the update-checking effects. In most cases you don't need to interact with it directly.
 
-To enable native-update checks and MUS-targeted OTA headers, set the `MUS_URL`, `MUS_APP_ID`, and `MUS_CHANNEL` [env config](../guide/configuration#env). If you want the `mus-user-id` header populated, register a user-id provider once you have an auth layer:
-
-```ts
-import { Updater } from '@zyno-io/mobile-foundation-rn';
-
-// e.g. after configuring your keychain/auth store
-Updater.setUserIdProvider(() => KeychainState.accountId);
-```
+To enable native-update checks, set `MUS_URL`, `MUS_APP_ID`, and `MUS_CHANNEL` in [env config](../guide/configuration#env). Device-targeted OTA request headers only require `MUS_CHANNEL`.
 
 ---
 
@@ -181,7 +174,7 @@ Shows the global loader and never dismisses it. Used after the user acknowledges
 
 ---
 
-## MUS-Targeted OTA Request Headers
+## Device-Targeted OTA Request Headers
 
 When `MUS_CHANNEL` is set (and not in development), the Updater overrides the expo-updates request headers so the MUS can target OTA rollouts:
 
@@ -189,27 +182,19 @@ When `MUS_CHANNEL` is set (and not in development), the Updater overrides the ex
 |--------|-------|
 | `expo-channel-name` | `MUS_CHANNEL` |
 | `mus-device-id` | `AppMeta.deviceId` |
-| `mus-user-id` | result of the registered user-id provider, or `"none"` |
-
-### `setUserIdProvider(provider)`
-
-```ts
-Updater.setUserIdProvider(() => KeychainState.accountId);
-```
-
-Registers a provider for the current user id. The header override is kept in sync **reactively** — as the provider's observables change (login / logout), the `mus-user-id` header updates automatically. Calling this also starts the header sync if it hasn't started yet. Pass `null` to clear the provider.
 
 ---
 
 ## Automatic Behavior
 
-When **not** in development mode, `_useHook` (invoked by `useSetupFoundation`):
+`_useHook` (invoked by `useSetupFoundation`) always starts native-update status loading. Native status self-skips when the full MUS config is absent; when configured, it fetches on launch/foreground and can show the [required-update alert](#required-update-alert), unless deferred.
 
-1. **On launch** — after `AppMeta.load()` completes, checks for an OTA update; also starts the MUS header sync and fetches native update status.
-2. **On foreground** — re-checks for OTA updates (`useAppActivatedEffect`) and re-fetches native update status.
+When **not** in development mode, `_useHook` also:
+
+1. **On launch** — after `AppMeta.load()` completes, starts the MUS header sync and checks for an OTA update.
+2. **On foreground** — re-checks for OTA updates (`useAppActivatedEffect`).
 3. **On OTA download** — installs immediately, unless [deferred](#setupdatedeferrallistener-listener).
-4. **On required native update** — shows the [required-update alert](#required-update-alert), unless deferred.
 
-In development mode all of the above is skipped.
+In development mode, OTA checks, MUS request-header overrides, and OTA auto-install are skipped.
 
 The `updaterTimeout` config controls when the OTA status text is cleared. It does not cancel the underlying `checkForUpdateAsync()` call — the check may still complete in the background after the timeout.

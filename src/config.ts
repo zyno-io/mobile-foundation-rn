@@ -38,7 +38,7 @@ export interface FoundationConfig {
         SENTRY_DSN?: string;
         LOGGER_URL?: string;
         CDN_URL?: string;
-        /** Mobile Update Server — required for native-update checks + MUS-targeted OTA. */
+        /** Mobile Update Server config. MUS_CHANNEL also enables device-targeted OTA headers. */
         MUS_URL?: string;
         MUS_APP_ID?: string;
         MUS_CHANNEL?: string;
