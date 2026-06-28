@@ -47,7 +47,7 @@ function compareVersions(a: string, b: string): number {
 let _nativeAlertShown = false;
 let _nativeWatchStarted = false;
 let _nativeAppStateListenerStarted = false;
-let _headersSyncStarted = false;
+let _headersSyncPromise: Promise<void> | null = null;
 let _installDeferralDisposer: (() => void) | null = null;
 
 // --- Auto-install safety / downgrade-loop hardening -------------------------
@@ -163,9 +163,11 @@ export const Updater = {
       // before the first check so AppMeta.load() applies headers first.
       Updater._startHeadersSync();
 
-      AppMeta.load().then(() => {
-        Updater.downloadUpdate();
-      });
+      AppMeta.load()
+        .then(() => Updater._startHeadersSync())
+        .then(() => {
+          Updater.downloadUpdate();
+        });
     }, []);
 
     if (!AppMeta.isDevelopment) {
@@ -616,15 +618,22 @@ export const Updater = {
   // Device-targeted OTA request headers (channel / device)
   // ===================================================================
 
-  _startHeadersSync() {
-    if (AppMeta.isDevelopment) return;
-    if (_headersSyncStarted) return;
-    if (!getFoundationConfig().env.MUS_CHANNEL) return;
-    _headersSyncStarted = true;
+  _startHeadersSync(): Promise<void> {
+    if (AppMeta.isDevelopment) return Promise.resolve();
+    if (_headersSyncPromise) return _headersSyncPromise;
+    if (!getFoundationConfig().env.MUS_CHANNEL) return Promise.resolve();
+    if (!Updates.isEmbeddedLaunch || Updates.isEmergencyLaunch) {
+      logger.info("Preserving existing update request headers on OTA launch");
+      _headersSyncPromise = Promise.resolve();
+      return _headersSyncPromise;
+    }
 
-    AppMeta.load().then(() => {
-      Updater._applyRequestHeaders();
-    });
+    _headersSyncPromise = AppMeta.load()
+      .then(() => Updater._applyRequestHeaders())
+      .catch((err) => {
+        logger.warn("Failed to initialize updater headers", err);
+      });
+    return _headersSyncPromise;
   },
 
   _applyRequestHeaders() {

@@ -77,15 +77,28 @@ describe('Updater', () => {
             });
         });
 
-        it('starts header sync only when a MUS channel is configured', async () => {
-            const { Updater, Updates, AppMeta } = setup();
-            await AppMeta.load();
-            Updater._startHeadersSync();
-            await flushMicrotasks();
+        it('starts header sync on embedded launches when a MUS channel is configured', async () => {
+            const { Updater, Updates } = setup();
+            Object.defineProperty(Updates, 'isEmbeddedLaunch', { value: true, configurable: true });
+            await Updater._startHeadersSync();
             expect(Updates.setUpdateRequestHeadersOverride).toHaveBeenCalledWith({
                 'expo-channel-name': 'chan-1',
                 'mus-device-id': 'unique-id-123'
             });
+        });
+
+        it('preserves existing header overrides on OTA launches', async () => {
+            const { Updater, Updates } = setup();
+            await Updater._startHeadersSync();
+            expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
+        });
+
+        it('preserves existing header overrides on emergency launches', async () => {
+            const { Updater, Updates } = setup();
+            Object.defineProperty(Updates, 'isEmbeddedLaunch', { value: true, configurable: true });
+            Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
+            await Updater._startHeadersSync();
+            expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
         });
 
         it('does not start header sync without a MUS channel', () => {
