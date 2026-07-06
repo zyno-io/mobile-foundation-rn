@@ -19,6 +19,8 @@ const LogState = {
     queue: [] as LogEntry[],
     isPushing: false
 };
+const LOG_PUSH_TIMEOUT_MS = 10_000;
+const APP_META_LOG_ID_WAIT_MS = 2_000;
 
 const scribeTransport: transportFunctionType<object> = props => {
     const { extension, level, rawMsg } = props;
@@ -178,6 +180,16 @@ function processArgs(...args: any[]) {
     });
 }
 
+async function ensureLogIdentityLoaded() {
+    if (AppMeta.deviceIdEnv) return;
+
+    try {
+        await Promise.race([AppMeta.load(), new Promise<void>(resolve => setTimeout(resolve, APP_META_LOG_ID_WAIT_MS))]);
+    } catch (err) {
+        _realConsoleError('Failed to load app metadata before pushing logs', err);
+    }
+}
+
 async function pushLogQueue() {
     if (LogState.isPushing) {
         return;
@@ -189,36 +201,50 @@ async function pushLogQueue() {
 
     LogState.isPushing = true;
 
-    // allow a little time for more logs to pour in
-    await new Promise(resolve => setTimeout(resolve, 1_000));
-
-    const entries = LogState.queue.slice(0, 100);
-    const entriesOut = entries.map(entry => ({
-        a: entry.aid,
-        t: entry.ts,
-        l: entry.level,
-        s: entry.scope,
-        m: entry.msg,
-        x: entry.data
-    }));
-
     try {
-        const loggerUrl = getFoundationConfig().env.LOGGER_URL;
-        if (!loggerUrl) return;
+        // allow a little time for more logs to pour in
+        await new Promise(resolve => setTimeout(resolve, 1_000));
+        await ensureLogIdentityLoaded();
 
-        const response = await fetch(loggerUrl, {
-            method: 'POST',
-            headers: {
-                'content-type': 'application/json'
-            },
-            body: JSON.stringify({
-                i: AppMeta.bundleId,
-                v: AppMeta.appVersion,
-                d: AppMeta.deviceIdEnv,
-                l: AppMeta.launchTs,
-                e: entriesOut
-            })
-        });
+        const entries = LogState.queue.slice(0, 100);
+        if (!entries.length) return;
+
+        const entriesOut = entries.map(entry => ({
+            a: entry.aid,
+            t: entry.ts,
+            l: entry.level,
+            s: entry.scope,
+            m: entry.msg,
+            x: entry.data
+        }));
+
+        const loggerUrl = getFoundationConfig().env.LOGGER_URL;
+        if (!loggerUrl) {
+            LogState.queue.splice(0, entries.length);
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), LOG_PUSH_TIMEOUT_MS);
+        let response: Response;
+        try {
+            response = await fetch(loggerUrl, {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json'
+                },
+                body: JSON.stringify({
+                    i: AppMeta.bundleId,
+                    v: AppMeta.appVersion,
+                    d: AppMeta.deviceIdEnv,
+                    l: AppMeta.launchTs,
+                    e: entriesOut
+                }),
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timeout);
+        }
 
         if (response.status !== 201) {
             throw new Error(`Unexpected HTTP response code ${response.status}`);
@@ -227,8 +253,8 @@ async function pushLogQueue() {
         LogState.queue.splice(0, entries.length);
     } catch (err) {
         _realConsoleError('Failed to push logs', err);
+    } finally {
+        LogState.isPushing = false;
+        if (LogState.queue.length) setTimeout(pushLogQueue, 1_000);
     }
-
-    LogState.isPushing = false;
-    if (LogState.queue.length) setTimeout(pushLogQueue, 1_000);
 }
