@@ -24,7 +24,20 @@
     "plugins": [
       "expo-font",
       ["@sentry/react-native", { "organization": "test", "project": "test" }],
-      "./plugins/withDetox"
+      [
+        "@zyno-io/mobile-foundation-rn",
+        {
+          "androidBuildProperties": {
+            "gradleProperties": {
+              "org.gradle.jvmargs": "-Xmx2048m -XX:MaxMetaspaceSize=1024m"
+            },
+            "gradleWrapperProperties": {
+              "networkTimeout": 60000
+            }
+          },
+          "detox": true
+        }
+      ]
     ]
   }
 }

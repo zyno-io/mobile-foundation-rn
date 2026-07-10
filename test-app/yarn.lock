@@ -2565,6 +2565,7 @@ __metadata:
     "@react-navigation/native": "*"
     "@react-navigation/stack": "*"
     "@sentry/react-native": "*"
+    detox: ">=20.0.0"
     expo: ">=57.0.0"
     expo-file-system: "*"
     expo-font: "*"
@@ -2584,6 +2585,8 @@ __metadata:
     react-native-reanimated: "*"
     react-native-safe-area-context: "*"
   peerDependenciesMeta:
+    detox:
+      optional: true
     expo:
       optional: true
   languageName: node

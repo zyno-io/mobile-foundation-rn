@@ -17,6 +17,7 @@ export default defineConfig({
                 items: [
                     { text: 'Getting Started', link: '/guide/getting-started' },
                     { text: 'Configuration', link: '/guide/configuration' },
+                    { text: 'Expo Config Plugins', link: '/guide/config-plugins' },
                     { text: 'Theming', link: '/guide/theming' },
                     { text: 'Keyboard Avoidance', link: '/guide/keyboard-avoidance' },
                     { text: 'Form Navigation', link: '/guide/form-navigation' },

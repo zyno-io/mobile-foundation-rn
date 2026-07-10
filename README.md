@@ -17,6 +17,7 @@ Your app must install these packages:
 - `@react-native-async-storage/async-storage`
 - `@react-navigation/native`, `@react-navigation/stack`
 - `@sentry/react-native`
+- `detox` (optional; required when using the Detox config plugin)
 - `expo` (optional; required when using the Expo config plugin)
 - `expo-font`, `expo-linking`, `expo-splash-screen`, `expo-testflight`, `expo-updates`
 - `lodash`
@@ -24,7 +25,13 @@ Your app must install these packages:
 - `react`, `react-native`
 - `react-native-device-info`, `react-native-gesture-handler`, `react-native-logs`, `react-native-reanimated`, `react-native-safe-area-context`
 
-### Android Identity Config Plugin
+## Expo Config Plugins
+
+The package includes reusable Expo config plugins for Android identity, raw
+Gradle settings, and Detox native setup. They run during `expo prebuild`, so
+generated Android files do not need to be committed or patched in CI.
+
+### Android Identity
 
 Set an Android-only launcher name without changing `expo.name`. If the app's
 installation ID differs from its Kotlin package, `androidNamespace` also keeps
@@ -55,6 +62,117 @@ During Expo Prebuild, the plugin writes
 keeps the Java/Kotlin source directories aligned with that namespace. Omit
 `androidNamespace` when the namespace and `expo.android.package` are the same.
 In a project that does not use Prebuild, set these native values manually.
+
+### Android Build Properties
+
+`expo-build-properties` does not expose arbitrary `gradle.properties` values or
+Gradle wrapper settings. The foundation plugin can set both:
+
+```json
+{
+    "expo": {
+        "plugins": [
+            [
+                "@zyno-io/mobile-foundation-rn",
+                {
+                    "androidBuildProperties": {
+                        "gradleProperties": {
+                            "org.gradle.jvmargs": "-Xmx2048m -XX:MaxMetaspaceSize=1024m"
+                        },
+                        "gradleWrapperProperties": {
+                            "networkTimeout": 60000
+                        }
+                    }
+                }
+            ]
+        ]
+    }
+}
+```
+
+Both maps accept any property name and any string, number, or boolean value.
+Existing generated properties are replaced in place; missing properties are
+appended. For a project that only needs this capability, use the standalone
+entry point:
+
+```json
+[
+    "@zyno-io/mobile-foundation-rn/plugin/android-build-properties",
+    {
+        "gradleProperties": {
+            "org.gradle.jvmargs": "-Xmx4g -XX:MaxMetaspaceSize=1g"
+        },
+        "gradleWrapperProperties": {
+            "networkTimeout": 60000
+        }
+    }
+]
+```
+
+### Detox Android Setup
+
+Install Detox in the consuming app, then opt into the foundation plugin:
+
+```bash
+yarn add --dev detox
+```
+
+```json
+{
+    "expo": {
+        "android": {
+            "package": "app.example.dev"
+        },
+        "plugins": [
+            [
+                "@zyno-io/mobile-foundation-rn",
+                {
+                    "androidNamespace": "app.example",
+                    "detox": {
+                        "masterTimeoutSec": 120,
+                        "idleResourceTimeoutSec": 60,
+                        "rnContextLoadTimeoutSec": 120
+                    }
+                }
+            ]
+        ]
+    }
+}
+```
+
+The plugin adds the Detox Maven repository, Android test runner and
+dependencies, duplicate-native-library packaging rules, manifest settings, and
+`DetoxTest.java`. When `androidNamespace` is set on the combined foundation
+plugin, the test class automatically uses that namespace instead of
+`expo.android.package`. With the standalone entry point, pass `androidPackage`
+when those values differ:
+
+```json
+[
+    "@zyno-io/mobile-foundation-rn/plugin/detox",
+    {
+        "androidPackage": "app.example",
+        "allowCleartextTraffic": true,
+        "disableAutofill": true
+    }
+]
+```
+
+`allowCleartextTraffic` and `disableAutofill` default to `true` for reliable E2E
+runs. Set either to `false` if the app manages that behavior through its own
+manifest or network-security plugin. The plugin configures Android native code
+only; the consuming app still owns its Detox configuration, Jest setup, tests,
+emulator/simulator selection, and any project-specific iOS synchronization
+workarounds.
+
+Do not enable this plugin and `@config-plugins/detox` together. After migrating,
+remove that package and the hand-maintained native Detox changes before running
+a clean prebuild.
+
+For the combined `@zyno-io/mobile-foundation-rn` entry point, set `detox` to
+`true` for the defaults or to the options object shown above. The standalone
+build-properties and Detox entry points can be used independently by any Expo
+project without enabling the rest of the foundation config plugin.
 
 ## Quick Start
 

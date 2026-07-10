@@ -22,6 +22,7 @@
         "@react-navigation/native": "*",
         "@react-navigation/stack": "*",
         "@sentry/react-native": "*",
+        "detox": ">=20.0.0",
         "expo": ">=57.0.0",
         "expo-file-system": "*",
         "expo-font": "*",
@@ -90,6 +91,9 @@
         "src"
     ],
     "peerDependenciesMeta": {
+        "detox": {
+            "optional": true
+        },
         "expo": {
             "optional": true
         }

@@ -5,6 +5,11 @@ const {
     withStringsXml,
 } = require("expo/config-plugins");
 
+const {
+    withAndroidBuildProperties,
+} = require("./android-build-properties");
+const { withDetox } = require("./detox");
+
 const ANDROID_NAMESPACE_PATTERN =
     /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
 
@@ -81,7 +86,12 @@ const withAndroidAppName = (config, androidAppName) => {
 };
 
 const withMobileFoundation = (config, options = {}) => {
-    const { androidAppName, androidNamespace } = options;
+    const {
+        androidAppName,
+        androidBuildProperties,
+        androidNamespace,
+        detox,
+    } = options;
 
     // Keep the plugin safe when Expo adds it automatically without options.
     if (androidNamespace !== undefined) {
@@ -92,10 +102,35 @@ const withMobileFoundation = (config, options = {}) => {
         config = withAndroidAppName(config, androidAppName);
     }
 
+    if (androidBuildProperties !== undefined) {
+        config = withAndroidBuildProperties(config, androidBuildProperties);
+    }
+
+    if (detox !== undefined && detox !== false) {
+        const detoxOptions = detox === true ? {} : detox;
+        if (
+            detoxOptions === null ||
+            typeof detoxOptions !== "object" ||
+            Array.isArray(detoxOptions)
+        ) {
+            throw new Error(
+                "@zyno-io/mobile-foundation-rn requires detox to be a boolean or an options object",
+            );
+        }
+
+        config = withDetox(config, {
+            ...detoxOptions,
+            androidPackage:
+                detoxOptions.androidPackage ?? androidNamespace,
+        });
+    }
+
     return config;
 };
 
 module.exports = withMobileFoundation;
 module.exports.withAndroidAppName = withAndroidAppName;
+module.exports.withAndroidBuildProperties = withAndroidBuildProperties;
 module.exports.withAndroidNamespace = withAndroidNamespace;
+module.exports.withDetox = withDetox;
 module.exports.withMobileFoundation = withMobileFoundation;
