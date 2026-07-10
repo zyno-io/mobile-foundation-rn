@@ -2090,9 +2090,36 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@zyno-io/mobile-foundation-rn@link:..::locator=foundation-test-app%40workspace%3A.":
+"@zyno-io/mobile-foundation-rn@portal:..::locator=foundation-test-app%40workspace%3A.":
   version: 0.0.0-use.local
-  resolution: "@zyno-io/mobile-foundation-rn@link:..::locator=foundation-test-app%40workspace%3A."
+  resolution: "@zyno-io/mobile-foundation-rn@portal:..::locator=foundation-test-app%40workspace%3A."
+  dependencies:
+    pako: "npm:2.1.0"
+  peerDependencies:
+    "@expo/react-native-action-sheet": "*"
+    "@fortawesome/fontawesome-svg-core": "*"
+    "@fortawesome/react-native-fontawesome": "*"
+    "@react-native-async-storage/async-storage": "*"
+    "@react-navigation/native": "*"
+    "@react-navigation/stack": "*"
+    "@sentry/react-native": "*"
+    expo-file-system: "*"
+    expo-font: "*"
+    expo-linking: "*"
+    expo-splash-screen: "*"
+    expo-testflight: "*"
+    expo-updates: "*"
+    lodash: "*"
+    mobx: "*"
+    mobx-react-lite: "*"
+    react: "*"
+    react-native: "*"
+    react-native-device-info: "*"
+    react-native-gesture-handler: "*"
+    react-native-keyboard-controller: "*"
+    react-native-logs: "*"
+    react-native-reanimated: "*"
+    react-native-safe-area-context: "*"
   languageName: node
   linkType: soft
 
@@ -3775,7 +3802,7 @@ __metadata:
     "@sentry/react-native": "npm:~7.11.0"
     "@types/events": "npm:^3"
     "@types/react": "npm:~19.2.17"
-    "@zyno-io/mobile-foundation-rn": "link:.."
+    "@zyno-io/mobile-foundation-rn": "portal:.."
     detox: "npm:^20.51.4"
     events: "npm:^3.3.0"
     expo: "npm:~57.0.4"
@@ -5381,6 +5408,13 @@ __metadata:
   dependencies:
     p-limit: "npm:^3.0.2"
   checksum: 10c0/2290d627ab7903b8b70d11d384fee714b797f6040d9278932754a6860845c4d3190603a0772a663c8cb5a7b21d1b16acb3a6487ebcafa9773094edc3dfe6009a
+  languageName: node
+  linkType: hard
+
+"pako@npm:2.1.0":
+  version: 2.1.0
+  resolution: "pako@npm:2.1.0"
+  checksum: 10c0/8e8646581410654b50eb22a5dfd71159cae98145bd5086c9a7a816ec0370b5f72b4648d08674624b3870a521e6a3daffd6c2f7bc00fdefc7063c9d8232ff5116
   languageName: node
   linkType: hard
 
