@@ -71,8 +71,9 @@ e2e:ios:
     - yarn --immutable
     - cd test-app
     - yarn --immutable
+    - npx expo prebuild --clean --no-install --platform ios
     - bundle install
-    - cd ios && LANG=en_US.UTF-8 pod install && cd ..
+    - LANG=en_US.UTF-8 bundle exec pod install --project-directory=ios
     - npx detox build -c ios.sim.release
     # Disable hardware keyboard so the software keyboard appears and fires keyboard events.
     # The global `defaults write` is not enough — modern Xcode stores the setting per-device
@@ -138,6 +139,7 @@ e2e:android:
     - yarn --immutable
     - cd test-app
     - yarn --immutable
+    - npx expo prebuild --clean --no-install --platform android
     - npx detox build -c android.emu.release
     - npx detox test -c android.emu.release --headless --take-screenshots failing
     - adb emu kill 2>/dev/null || true

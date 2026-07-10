@@ -31,6 +31,9 @@ else
 fi
 
 if [ "$NO_BUILD" = false ]; then
+    echo "==> Generating Android project..."
+    yarn expo prebuild --clean --no-install --platform android
+
     echo "==> Building Android app for Detox ($CONFIG)..."
     yarn detox build -c "$CONFIG"
 fi

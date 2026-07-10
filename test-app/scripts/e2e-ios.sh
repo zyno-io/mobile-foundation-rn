@@ -29,6 +29,11 @@ else
 fi
 
 if [ "$NO_BUILD" = false ]; then
+    echo "==> Generating iOS project..."
+    yarn expo prebuild --clean --no-install --platform ios
+    bundle install
+    LANG=en_US.UTF-8 bundle exec pod install --project-directory=ios
+
     echo "==> Building iOS app for Detox ($CONFIG)..."
     yarn detox build -c "$CONFIG"
 fi
