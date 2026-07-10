@@ -54,6 +54,7 @@
         "@testing-library/react-native": "^13.3.3",
         "@types/jest": "^30.0.0",
         "@types/lodash": "*",
+        "@types/node": "*",
         "@types/pako": "^2.0.4",
         "@types/react": "~19.2.17",
         "@types/react-test-renderer": "^19",
@@ -78,7 +79,7 @@
         "react-native-safe-area-context": "~5.8.0",
         "react-test-renderer": "19.2.5",
         "ts-jest": "^29.4.9",
-        "typescript": "~7.0.2",
+        "typescript": "~6.0.3",
         "vitepress": "^1.6.4"
     },
     "files": [
