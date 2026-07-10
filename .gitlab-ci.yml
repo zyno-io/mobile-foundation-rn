@@ -71,6 +71,7 @@ e2e:ios:
     - yarn --immutable
     - cd test-app
     - yarn --immutable
+    - npx detox build-framework-cache
     - npx expo prebuild --clean --no-install --platform ios
     - bundle install
     - LANG=en_US.UTF-8 bundle exec pod install --project-directory=ios

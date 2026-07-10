@@ -17,11 +17,44 @@ Your app must install these packages:
 - `@react-native-async-storage/async-storage`
 - `@react-navigation/native`, `@react-navigation/stack`
 - `@sentry/react-native`
+- `expo` (optional; required when using the Expo config plugin)
 - `expo-font`, `expo-linking`, `expo-splash-screen`, `expo-testflight`, `expo-updates`
 - `lodash`
 - `mobx`, `mobx-react-lite`
 - `react`, `react-native`
 - `react-native-device-info`, `react-native-gesture-handler`, `react-native-logs`, `react-native-reanimated`, `react-native-safe-area-context`
+
+### Android Identity Config Plugin
+
+Set an Android-only launcher name without changing `expo.name`. If the app's
+installation ID differs from its Kotlin package, `androidNamespace` also keeps
+the native source package stable while `expo.android.package` remains the
+installation ID:
+
+```json
+{
+    "expo": {
+        "android": {
+            "package": "app.zyno.talk_dev"
+        },
+        "plugins": [
+            [
+                "@zyno-io/mobile-foundation-rn",
+                {
+                    "androidAppName": "ZynoTalk (Dev)",
+                    "androidNamespace": "app.zyno.talk"
+                }
+            ]
+        ]
+    }
+}
+```
+
+During Expo Prebuild, the plugin writes
+`android/app/src/main/res/values/strings.xml`, sets the Gradle `namespace`, and
+keeps the Java/Kotlin source directories aligned with that namespace. Omit
+`androidNamespace` when the namespace and `expo.android.package` are the same.
+In a project that does not use Prebuild, set these native values manually.
 
 ## Quick Start
 
