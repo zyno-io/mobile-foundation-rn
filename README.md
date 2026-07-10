@@ -117,7 +117,7 @@ export default RootLayout;
 | `fonts` | `Record<string, any>` | No | Font map passed to `useFonts()` |
 | `statusBar` | `{ barStyle, backgroundColorKey? }` | No | Status bar styling |
 | `splashScreen` | `'auto' \| 'manual'` | No | Splash screen hide behavior (default: `'auto'`) |
-| `updaterTimeout` | `number` | No | Max ms to wait for update check before proceeding |
+| `updaterTimeout` | `number` | No | Max ms for each startup/checking phase; downloading uses 10 seconds and installation has no timeout |
 | `deepLinkHandler` | `(url: string) => void` | No | Handler for incoming deep links |
 | `supportContact` | `string` | No | Contact info shown in error dialogs |
 | `userErrorClasses` | `ErrorClass[]` | No | Error classes whose messages are shown to users |

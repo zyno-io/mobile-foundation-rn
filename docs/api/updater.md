@@ -32,7 +32,7 @@ const UpdateBanner = observer(() => {
 ```
 
 Possible values:
-- `null` — no update activity
+- `null` — no visible update activity (idle, timed out, or deferred)
 - `"Starting up..."` — expo-updates startup procedure running
 - `"Checking for updates..."` — checking with expo-updates
 - `"Downloading update..."` — downloading OTA bundle
@@ -197,4 +197,6 @@ When **not** in development mode, `_useHook` also:
 
 In development mode, OTA checks, MUS request-header overrides, and OTA auto-install are skipped.
 
-The `updaterTimeout` config controls when the OTA status text is cleared. It does not cancel the underlying `checkForUpdateAsync()` call — the check may still complete in the background after the timeout.
+The `updaterTimeout` config applies independently whenever the updater enters its startup/checking phase. Downloading has a separate 10-second timeout. Entering a new phase resets the deadline, while pending installation and restart never time out. A timeout only clears the user-facing status; it does not cancel the underlying work. A pending update may display as installing during Expo's native startup procedure, but automatic reload waits until that procedure finishes.
+
+While `shouldDeferUpdate()` is true, `statusText` is immediately masked to `null`. An in-progress check or download may continue, but any scheduled install is canceled and remains pending. When deferral clears, the current unmasked status is restored and a pending install is scheduled again when safe.

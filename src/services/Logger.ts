@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react-native';
+import { gzip } from 'pako';
 import { Alert, AlertOptions, AppState, Platform } from 'react-native';
 import { logger as rnLogger, transportFunctionType } from 'react-native-logs';
 
@@ -21,6 +22,7 @@ const LogState = {
 };
 const LOG_PUSH_TIMEOUT_MS = 10_000;
 const APP_META_LOG_ID_WAIT_MS = 2_000;
+const LOG_COMPRESSION_THRESHOLD_BYTES = 8 * 1024;
 
 const scribeTransport: transportFunctionType<object> = props => {
     const { extension, level, rawMsg } = props;
@@ -190,6 +192,35 @@ async function ensureLogIdentityLoaded() {
     }
 }
 
+function createLogRequest(payload: object): { headers: Record<string, string>; body: string | ArrayBuffer } {
+    const jsonBody = JSON.stringify(payload);
+    const headers: Record<string, string> = {
+        'content-type': 'application/json'
+    };
+
+    if (jsonBody.length < LOG_COMPRESSION_THRESHOLD_BYTES) {
+        return { headers, body: jsonBody };
+    }
+
+    try {
+        const compressedBody = gzip(jsonBody);
+        if (compressedBody.byteLength >= jsonBody.length) {
+            return { headers, body: jsonBody };
+        }
+
+        return {
+            headers: {
+                ...headers,
+                'content-encoding': 'gzip'
+            },
+            body: compressedBody.buffer.slice(compressedBody.byteOffset, compressedBody.byteOffset + compressedBody.byteLength) as ArrayBuffer
+        };
+    } catch (err) {
+        _realConsoleError('Failed to gzip logs; sending uncompressed', err);
+        return { headers, body: jsonBody };
+    }
+}
+
 async function pushLogQueue() {
     if (LogState.isPushing) {
         return;
@@ -224,22 +255,22 @@ async function pushLogQueue() {
             return;
         }
 
+        const request = createLogRequest({
+            i: AppMeta.bundleId,
+            v: AppMeta.appVersion,
+            d: AppMeta.deviceIdEnv,
+            l: AppMeta.launchTs,
+            e: entriesOut
+        });
+
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), LOG_PUSH_TIMEOUT_MS);
         let response: Response;
         try {
             response = await fetch(loggerUrl, {
                 method: 'POST',
-                headers: {
-                    'content-type': 'application/json'
-                },
-                body: JSON.stringify({
-                    i: AppMeta.bundleId,
-                    v: AppMeta.appVersion,
-                    d: AppMeta.deviceIdEnv,
-                    l: AppMeta.launchTs,
-                    e: entriesOut
-                }),
+                headers: request.headers,
+                body: request.body,
                 signal: controller.signal
             });
         } finally {

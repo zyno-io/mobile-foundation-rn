@@ -64,6 +64,173 @@ describe('Updater', () => {
             Updater.setUpdateDeferralListener(null);
             expect(Updater.shouldDeferUpdate()).toBe(false);
         });
+
+        it('immediately masks and restores the current updater status reactively', () => {
+            const { Updater, Updates } = setup();
+            const React = require('react');
+            const { render, act } = require('@testing-library/react-native/pure');
+            const { observable, runInAction } = require('mobx');
+            const deferred = observable.box(false);
+
+            (Updates.useUpdates as jest.Mock).mockReturnValue({
+                isStartupProcedureRunning: false,
+                isRestarting: false,
+                isDownloading: true,
+                isUpdatePending: false,
+                isChecking: false
+            });
+            Updater.setUpdateDeferralListener(() => deferred.get());
+
+            function Harness() {
+                Updater._useHook(true);
+                return null;
+            }
+
+            const view = render(React.createElement(Harness));
+            expect(Updater.statusText).toBe('Downloading update...');
+
+            act(() => runInAction(() => deferred.set(true)));
+            expect(Updater.statusText).toBeNull();
+
+            act(() => runInAction(() => deferred.set(false)));
+            expect(Updater.statusText).toBe('Downloading update...');
+            view.unmount();
+        });
+    });
+
+    describe('OTA status timeouts', () => {
+        it('uses the downloading phase while Expo startup is still running', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                const React = require('react');
+                const { render, act } = require('@testing-library/react-native/pure');
+                (Updates.useUpdates as jest.Mock).mockReturnValue({
+                    isStartupProcedureRunning: true,
+                    isRestarting: false,
+                    isDownloading: true,
+                    isUpdatePending: false,
+                    isChecking: false
+                });
+                require('../../src/config').configureFoundation(createMockConfig({ updaterTimeout: 4000 }));
+
+                function Harness() {
+                    Updater._useHook(true);
+                    return null;
+                }
+
+                const view = render(React.createElement(Harness));
+                expect(Updater.statusText).toBe('Downloading update...');
+
+                act(() => jest.advanceTimersByTime(4000));
+                expect(Updater.statusText).toBe('Downloading update...');
+
+                act(() => jest.advanceTimersByTime(6000));
+                expect(Updater.statusText).toBeNull();
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('shows a pending update but waits for Expo startup to finish before scheduling it', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                const React = require('react');
+                const { render } = require('@testing-library/react-native/pure');
+                let updateState = {
+                    isStartupProcedureRunning: true,
+                    isRestarting: false,
+                    isDownloading: false,
+                    isUpdatePending: true,
+                    isChecking: false,
+                    downloadedUpdate: { updateId: 'update-1' }
+                };
+                (Updates.useUpdates as jest.Mock).mockImplementation(() => updateState);
+                const schedule = jest.spyOn(Updater, 'scheduleInstallUpdate');
+
+                function Harness() {
+                    Updater._useHook(true);
+                    return null;
+                }
+
+                const view = render(React.createElement(Harness));
+                expect(Updater.statusText).toBe('Installing update...');
+                expect(schedule).not.toHaveBeenCalled();
+
+                updateState = { ...updateState, isStartupProcedureRunning: false };
+                view.rerender(React.createElement(Harness));
+
+                expect(schedule).toHaveBeenCalledWith('update-1');
+                expect(Updater._installTimeout).not.toBeNull();
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('restarts the timeout for each phase and never times out installation', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                const React = require('react');
+                const { render, act } = require('@testing-library/react-native/pure');
+                let updateState = {
+                    isStartupProcedureRunning: false,
+                    isRestarting: false,
+                    isDownloading: false,
+                    isUpdatePending: false,
+                    isChecking: true,
+                    downloadedUpdate: undefined as { updateId: string } | undefined
+                };
+                (Updates.useUpdates as jest.Mock).mockImplementation(() => updateState);
+                jest.spyOn(Updater, 'scheduleInstallUpdate').mockImplementation(() => undefined);
+
+                require('../../src/config').configureFoundation(createMockConfig({ updaterTimeout: 4000 }));
+
+                function Harness() {
+                    Updater._useHook(true);
+                    return null;
+                }
+
+                const view = render(React.createElement(Harness));
+                expect(Updater.statusText).toBe('Checking for updates...');
+
+                act(() => jest.advanceTimersByTime(3999));
+                expect(Updater.statusText).toBe('Checking for updates...');
+                act(() => jest.advanceTimersByTime(1));
+                expect(Updater.statusText).toBeNull();
+
+                updateState = {
+                    ...updateState,
+                    isChecking: false,
+                    isDownloading: true
+                };
+                view.rerender(React.createElement(Harness));
+                expect(Updater.statusText).toBe('Downloading update...');
+
+                act(() => jest.advanceTimersByTime(9999));
+                expect(Updater.statusText).toBe('Downloading update...');
+                act(() => jest.advanceTimersByTime(1));
+                expect(Updater.statusText).toBeNull();
+
+                updateState = {
+                    ...updateState,
+                    isDownloading: false,
+                    isUpdatePending: true,
+                    downloadedUpdate: { updateId: 'update-1' }
+                };
+                view.rerender(React.createElement(Harness));
+                expect(Updater.statusText).toBe('Installing update...');
+
+                act(() => jest.advanceTimersByTime(60_000));
+                expect(Updater.statusText).toBe('Installing update...');
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
     });
 
     describe('MUS request headers', () => {
@@ -534,6 +701,24 @@ describe('Updater', () => {
 
             expect(Updater._installTimeout).toBeNull();
             expect(Updater._canAutoInstallPendingUpdate('update-1')).toBe(false);
+        });
+
+        it('cancels an already-scheduled install as soon as deferral begins', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater } = setup();
+                const { observable, runInAction } = require('mobx');
+                const deferred = observable.box(false);
+                Updater.setUpdateDeferralListener(() => deferred.get());
+                Updater.scheduleInstallUpdate('update-1');
+                expect(Updater._installTimeout).not.toBeNull();
+
+                runInAction(() => deferred.set(true));
+
+                expect(Updater._installTimeout).toBeNull();
+            } finally {
+                jest.useRealTimers();
+            }
         });
 
         it('retries a pending install when deferral clears reactively', async () => {

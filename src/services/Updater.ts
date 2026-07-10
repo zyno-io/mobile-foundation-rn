@@ -30,6 +30,8 @@ export interface INativeUpdateStatus {
 }
 
 const _statusText = observable.box<string | null>(null);
+/** Current updater status before user-facing deferral masking is applied. */
+const _unmaskedStatusText = observable.box<string | null>(null);
 const _nativeStatus = observable.box<INativeUpdateStatus | null>(null);
 
 function compareVersions(a: string, b: string): number {
@@ -60,6 +62,8 @@ let _installDeferralDisposer: (() => void) | null = null;
 
 /** How long to let the JS runtime settle before reloading to install an update. */
 const INSTALL_SETTLE_MS = 1500;
+/** Downloading gets its own deadline; entering the phase always starts a fresh timer. */
+const DOWNLOAD_STATUS_TIMEOUT_MS = 10_000;
 /** Consecutive install attempts (within the window) that revert to the embedded
  *  bundle before we stop auto-installing and leave the user on what works. */
 const INSTALL_LOOP_MAX = 3;
@@ -68,6 +72,21 @@ const INSTALL_LOOP_STORAGE_KEY = "mf:updater:installLoop";
 /** High-water mark (ms) of the newest native expo-updates log entry already shipped,
  *  so the same entries aren't re-emitted on every launch within the read window. */
 const NATIVE_LOG_TS_KEY = "mf:updater:lastNativeLogTs";
+
+type UpdaterStatusPhase =
+  | "idle"
+  | "startup"
+  | "checking"
+  | "downloading"
+  | "installing"
+  | "restarting";
+
+function setUpdaterStatusText(text: string | null) {
+  runInAction(() => {
+    _unmaskedStatusText.set(text);
+    _statusText.set(Updater.shouldDeferUpdate() ? null : text);
+  });
+}
 
 export const Updater = {
   // ===================================================================
@@ -97,6 +116,9 @@ export const Updater = {
   /** Consecutive reloadAsync() failures this session (e.g. "appContext not set"
    *  when reloading too early). Bounds the in-session reload retry storm. */
   _reloadFailures: 0,
+  /** Mirrors useUpdates().isStartupProcedureRunning so every automatic install
+   *  path can avoid reloadAsync() while Expo is still completing startup. */
+  _isStartupProcedureRunning: false,
   /** Set by useSetupFoundation once fonts, AppMeta, AppStorage, and app-specific
    *  readiness have completed. Default true preserves direct/test installs that
    *  do not mount the foundation hook. */
@@ -177,39 +199,71 @@ export const Updater = {
       });
 
       const updates = Updates.useUpdates();
-      const timeout = getFoundationConfig().updaterTimeout;
-      const [timedOut, setTimedOut] = useState(false);
+      useEffect(() => {
+        Updater._isStartupProcedureRunning = updates.isStartupProcedureRunning;
+        if (!updates.isStartupProcedureRunning) Updater._trySchedulePendingInstall();
+      }, [updates.isStartupProcedureRunning]);
+
+      const checkingTimeoutMs = getFoundationConfig().updaterTimeout;
+      // Expo's startup flag is an envelope around startup checking/downloading,
+      // not a mutually exclusive phase. Prefer the concrete operation so each
+      // transition receives the correct status and timeout.
+      const statusPhase: UpdaterStatusPhase = updates.isRestarting
+        ? "restarting"
+        : updates.isDownloading
+          ? "downloading"
+          : updates.isUpdatePending
+            ? "installing"
+            : updates.isChecking
+              ? "checking"
+              : updates.isStartupProcedureRunning
+                ? "startup"
+                : "idle";
+      const phaseTimeoutMs =
+        statusPhase === "downloading"
+          ? DOWNLOAD_STATUS_TIMEOUT_MS
+          : statusPhase === "startup" || statusPhase === "checking"
+            ? checkingTimeoutMs
+            : undefined;
+      const [timedOutPhase, setTimedOutPhase] = useState<UpdaterStatusPhase | null>(null);
 
       useEffect(() => {
-        if (!timeout) return;
-        const t = setTimeout(() => setTimedOut(true), timeout);
+        // A timeout belongs only to the phase that created it. Moving to a new
+        // phase immediately makes that phase visible and starts its full timeout.
+        setTimedOutPhase(null);
+        if (!phaseTimeoutMs) return;
+        const phase = statusPhase;
+        const t = setTimeout(() => setTimedOutPhase(phase), phaseTimeoutMs);
         return () => clearTimeout(t);
-      }, []);
+      }, [statusPhase, phaseTimeoutMs]);
 
       useEffect(() => {
         let text: string | null = null;
-        if (updates.isStartupProcedureRunning) {
+        const phaseTimedOut = timedOutPhase === statusPhase;
+        if (statusPhase === "startup" && !phaseTimedOut) {
           text = "Starting up...";
-        } else if (updates.isRestarting) {
+        } else if (statusPhase === "restarting") {
           text = "Restarting to install update...";
-        } else if (updates.isDownloading) {
+        } else if (statusPhase === "downloading" && !phaseTimedOut) {
           text = "Downloading update...";
-        } else if (updates.isUpdatePending) {
+        } else if (statusPhase === "installing") {
           const pendingId = updates.downloadedUpdate?.updateId ?? null;
           Updater._pendingInstallUpdateId = pendingId;
-          // Hold back (and don't show a misleading "installing" state) until
-          // the app is ready/active and the circuit permits this exact update.
-          if (Updater._canAutoInstallPendingUpdate(pendingId)) {
+          // Retain the pending status internally while user-facing updates are
+          // deferred, so it can reappear and install as soon as deferral clears.
+          if (Updater._canAutoInstallPendingUpdate(pendingId, true, true)) {
             text = "Installing update...";
-            Updater.scheduleInstallUpdate(pendingId);
+            if (!Updater.shouldDeferUpdate() && !Updater._isStartupProcedureRunning) {
+              Updater.scheduleInstallUpdate(pendingId);
+            }
           }
-        } else if (updates.isChecking && !timedOut) {
+        } else if (statusPhase === "checking" && !phaseTimedOut) {
           text = "Checking for updates...";
         } else {
           Updater._pendingInstallUpdateId = undefined;
         }
-        runInAction(() => _statusText.set(text));
-      }, [updates, timedOut, appReady]);
+        setUpdaterStatusText(text);
+      }, [updates, statusPhase, timedOutPhase, appReady]);
     }
   },
 
@@ -367,13 +421,18 @@ export const Updater = {
     }
   },
 
-  _canAutoInstallPendingUpdate(pendingUpdateId: string | null): boolean {
+  _canAutoInstallPendingUpdate(
+    pendingUpdateId: string | null,
+    ignoreDeferral = false,
+    ignoreStartupProcedure = false,
+  ): boolean {
     const resolvedPendingUpdateId = Updater._resolvePendingInstallUpdateId(pendingUpdateId);
     if (!Updater._appReady) return false;
     if (AppState.currentState !== "active") return false;
     if (Updater._reloadInFlight) return false;
     if (Updater._reloadFailures >= INSTALL_LOOP_MAX) return false;
-    if (Updater.shouldDeferUpdate()) return false;
+    if (!ignoreDeferral && Updater.shouldDeferUpdate()) return false;
+    if (!ignoreStartupProcedure && Updater._isStartupProcedureRunning) return false;
     if (Updater._isInstallSuppressed(resolvedPendingUpdateId)) return false;
     if (Updates.isEmergencyLaunch && !Updater._isKnownFixForwardUpdate(resolvedPendingUpdateId)) {
       return false;
@@ -390,9 +449,15 @@ export const Updater = {
   _startInstallDeferralAutorun() {
     _installDeferralDisposer?.();
     _installDeferralDisposer = autorun(() => {
-      if (!Updater.shouldDeferUpdate()) {
-        Updater._trySchedulePendingInstall();
+      const deferred = Updater.shouldDeferUpdate();
+      runInAction(() => {
+        _statusText.set(deferred ? null : _unmaskedStatusText.get());
+      });
+      if (deferred) {
+        Updater._cancelScheduledInstall();
+        return;
       }
+      Updater._trySchedulePendingInstall();
     });
   },
 
@@ -453,9 +518,9 @@ export const Updater = {
         // Cancel any install the hook optimistically scheduled, and clear a
         // stale "Installing update..." status so it can't gate the splash.
         Updater._cancelScheduledInstall();
-        runInAction(() => {
-          if (_statusText.get() === "Installing update...") _statusText.set(null);
-        });
+        if (_unmaskedStatusText.get() === "Installing update...") {
+          setUpdaterStatusText(null);
+        }
         logger.warn(
           "Auto-install suppressed: update keeps reverting to the embedded bundle",
           state,

@@ -91,7 +91,7 @@ Optional custom font map passed to `expo-font` during setup. Loaded by `useSetup
 
 ### `updaterTimeout`
 
-Timeout in milliseconds for OTA update checks. When the timeout elapses, the update status UI is cleared, though the underlying check may still complete in the background.
+Timeout in milliseconds for each OTA startup/checking phase. Entering checking starts a fresh timer. Downloading starts a separate 10-second timer, while pending installation and restart have no timeout. When a phase times out, the update status UI is cleared, though the underlying work may still complete in the background; entering a new phase makes that phase visible and starts its own timer.
 
 ### `statusBar`
 
