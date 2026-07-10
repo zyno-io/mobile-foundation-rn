@@ -2103,6 +2103,7 @@ __metadata:
     "@react-navigation/native": "*"
     "@react-navigation/stack": "*"
     "@sentry/react-native": "*"
+    expo: ">=57.0.0"
     expo-file-system: "*"
     expo-font: "*"
     expo-linking: "*"
@@ -2120,6 +2121,9 @@ __metadata:
     react-native-logs: "*"
     react-native-reanimated: "*"
     react-native-safe-area-context: "*"
+  peerDependenciesMeta:
+    expo:
+      optional: true
   languageName: node
   linkType: soft
 
