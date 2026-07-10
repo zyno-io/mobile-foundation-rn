@@ -8,13 +8,17 @@ export async function launchApp() {
     }
 }
 
-/** Reload the app - uses launchApp on Android (reloadReactNative doesn't work with New Arch) */
+/**
+ * Reset the app between tests with a fresh process.
+ *
+ * Never use device.reloadReactNative(). Detox's CFRunLoopPerformBlock spy opens a single-use
+ * sync resource per block and closes it only when that block runs, so a block left behind on
+ * the JS run loop as RN tears it down keeps the app "busy" forever. The app then never reports
+ * idle and every subsequent reload hangs until the test times out. Reproduces on RN 0.86 within
+ * ~5 reloads; a fresh process is the only way out. Android has never supported it either.
+ */
 export async function reloadApp() {
-    if (device.getPlatform() === 'android') {
-        await device.launchApp({ newInstance: true });
-    } else {
-        await device.reloadReactNative();
-    }
+    await launchApp();
 }
 
 /** Navigate from HomeScreen to a test screen by testID */
