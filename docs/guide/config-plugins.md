@@ -99,14 +99,16 @@ The plugin generates the shared Android native setup:
 - optional cleartext-traffic and autofill manifest settings
 
 All options are optional. The three timeout defaults are 90, 60, and 180
-seconds. `allowCleartextTraffic` and `disableAutofill` default to `true`.
+seconds. `allowCleartextTraffic` defaults to `false`; enable it only for a
+dedicated E2E build that does not manage cleartext traffic through its own
+manifest or network-security plugin. `disableAutofill` defaults to `true`.
 `androidPackage` defaults to `expo.android.package`; set it explicitly when the
 Java/Kotlin namespace differs from the application ID. The combined plugin
 automatically passes `androidNamespace` to Detox.
 
 The app still owns `.detoxrc.js`, Jest configuration, test files, device
 selection, and project-specific network security or iOS synchronization code.
-Set either manifest option to `false` when another app plugin owns that setting.
+Keep `allowCleartextTraffic` disabled when another app plugin owns that setting.
 
 Do not enable this plugin and `@config-plugins/detox` together. After migrating,
 remove `@config-plugins/detox` and hand-maintained copies of the native changes

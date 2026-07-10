@@ -48,7 +48,7 @@ const normalizeOptions = (options = {}) => {
 
     const normalized = {
         androidPackage: options.androidPackage,
-        allowCleartextTraffic: options.allowCleartextTraffic ?? true,
+        allowCleartextTraffic: options.allowCleartextTraffic ?? false,
         disableAutofill: options.disableAutofill ?? true,
         masterTimeoutSec: options.masterTimeoutSec ?? 90,
         idleResourceTimeoutSec: options.idleResourceTimeoutSec ?? 60,

@@ -158,12 +158,12 @@ when those values differ:
 ]
 ```
 
-`allowCleartextTraffic` and `disableAutofill` default to `true` for reliable E2E
-runs. Set either to `false` if the app manages that behavior through its own
-manifest or network-security plugin. The plugin configures Android native code
-only; the consuming app still owns its Detox configuration, Jest setup, tests,
-emulator/simulator selection, and any project-specific iOS synchronization
-workarounds.
+`allowCleartextTraffic` defaults to `false`; enable it only for a dedicated E2E
+build that does not manage cleartext traffic through its own manifest or
+network-security plugin. `disableAutofill` defaults to `true` for reliable E2E
+runs. The plugin configures Android native code only; the consuming app still
+owns its Detox configuration, Jest setup, tests, emulator/simulator selection,
+and any project-specific network security or iOS synchronization workarounds.
 
 Do not enable this plugin and `@config-plugins/detox` together. After migrating,
 remove that package and the hand-maintained native Detox changes before running

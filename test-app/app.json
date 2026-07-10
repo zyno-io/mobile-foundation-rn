@@ -35,7 +35,9 @@
               "networkTimeout": 60000
             }
           },
-          "detox": true
+          "detox": {
+            "allowCleartextTraffic": true
+          }
         }
       ]
     ]
