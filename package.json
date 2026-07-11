@@ -43,6 +43,9 @@
         "react-native-safe-area-context": "*"
     },
     "dependencies": {
+        "@types/events": "3.0.3",
+        "@types/pako": "^2.0.4",
+        "events": "3.3.0",
         "pako": "2.1.0"
     },
     "devDependencies": {
@@ -57,7 +60,6 @@
         "@types/jest": "^30.0.0",
         "@types/lodash": "*",
         "@types/node": "*",
-        "@types/pako": "^2.0.4",
         "@types/react": "~19.2.17",
         "@types/react-test-renderer": "^19",
         "expo": "~57.0.4",

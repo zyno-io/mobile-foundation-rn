@@ -1,4 +1,4 @@
-import EventEmitter from 'events';
+import { EventEmitter } from 'events';
 import { useEffect } from 'react';
 
 export const Broadcast = new EventEmitter();
