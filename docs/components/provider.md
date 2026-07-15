@@ -39,4 +39,4 @@ The `colorScheme` prop controls the React Navigation theme (header/tab bar color
 - **StatusBar** — configured from `FoundationConfig.statusBar`
 - **GlobalLoaderOverlay** — shows when `LoaderState.loaderCount > 0`
 - **Sentry error boundary** — wraps the app with Sentry's error tracking
-- **Deep link handling** — calls `FoundationConfig.deepLinkHandler` when the app is opened via URL
+- **Deep link handling** — drains queued launch URLs and forwards each subsequent URL event to `FoundationConfig.deepLinkHandler`

@@ -269,7 +269,7 @@ export default RootLayout;
 | `statusBar` | `{ barStyle, backgroundColorKey? }` | No | Status bar styling |
 | `splashScreen` | `'auto' \| 'manual'` | No | Splash screen hide behavior (default: `'auto'`) |
 | `updaterTimeout` | `number` | No | Max ms for each startup/checking phase; downloading uses 10 seconds and installation has no timeout |
-| `deepLinkHandler` | `(url: string) => void` | No | Handler for incoming deep links |
+| `deepLinkHandler` | `(url: string) => void` | No | Handler for queued launch URLs and subsequent deep-link events |
 | `supportContact` | `string` | No | Contact info shown in error dialogs |
 | `userErrorClasses` | `ErrorClass[]` | No | Error classes whose messages are shown to users |
 | `defaults` | `FoundationDefaults` | No | Per-component style defaults (see below) |
@@ -406,7 +406,7 @@ Updater.setUpdateDeferralListener(() => isOnActiveCall);
 | `useNextTextInputRef()` | Auto-focus next input on submit |
 | `useMfKeyboardHeight()` | Current keyboard height |
 | `useMfSafeAreaInsets()` | Safe area insets with overrides |
-| `getLinkingUrl()` | Get the current linking URL synchronously |
+| `getLinkingUrl()` | Get the most recently observed linking URL synchronously |
 
 ## Helpers
 

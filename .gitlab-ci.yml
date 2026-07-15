@@ -25,6 +25,7 @@ build:
       yarn --immutable
 
       yarn typecheck
+      yarn test --runInBand
 
       rm -rf dist
       npx tsc -p tsconfig.json

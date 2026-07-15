@@ -109,7 +109,7 @@ Controls splash screen dismissal in `useSetupFoundation`:
 
 ### `deepLinkHandler`
 
-Called with the URL when the app is opened via a deep link. Invoked by `MfProvider`.
+Called once for each URL when the app is opened or receives a deep link. Foundation starts capturing URLs when it is imported and queues them until `MfProvider` mounts, so links received during asynchronous app setup are not lost. Repeated identical URLs are delivered as separate events.
 
 ### `supportContact`
 

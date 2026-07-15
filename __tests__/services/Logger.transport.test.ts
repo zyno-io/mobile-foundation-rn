@@ -73,7 +73,9 @@ describe("Logger remote transport", () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    jest.useFakeTimers();
+    // Preserve jest.setup's no-op setImmediate so configureFoundation does not
+    // initialize unrelated Sentry/AppState logging inside transport unit tests.
+    jest.useFakeTimers({ doNotFake: ["setImmediate"] });
 
     global.fetch = jest.fn(() => Promise.resolve({ status: 201 })) as unknown as typeof fetch;
   });

@@ -1,15 +1,15 @@
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import * as Sentry from '@sentry/react-native';
-import React, { useEffect, useState } from 'react';
-import { AppState, ColorSchemeName, StatusBar, useColorScheme } from 'react-native';
+import React, { useEffect } from 'react';
+import { ColorSchemeName, StatusBar, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getFoundationConfig } from '../config';
 import { useColors } from '../helpers/styles';
-import { getLinkingUrl } from '../hooks/useLinkingUrl';
+import { subscribeToLinkingUrls } from '../hooks/useLinkingUrl';
 
 import { GlobalLoaderOverlay } from './MfLoaderOverlay';
 import { MfGlobalKeyboardProvider } from '../hooks/useMfKeyboardHeight';
@@ -67,27 +67,12 @@ const FoundationStatusBar: React.FC = () => {
 
 const DeepLinkingHandler: React.FC = () => {
     const config = getFoundationConfig();
-    if (!config.deepLinkHandler) return null;
-
-    const [linkingUrl, setLinkingUrl] = useState<string | null>(() => getLinkingUrl());
+    const handler = config.deepLinkHandler;
 
     useEffect(() => {
-        const sub = AppState.addEventListener('change', state => {
-            if (state === 'active') {
-                const url = getLinkingUrl();
-                if (url && url !== linkingUrl) {
-                    setLinkingUrl(url);
-                }
-            }
-        });
-        return () => sub.remove();
-    }, [linkingUrl]);
-
-    useEffect(() => {
-        if (linkingUrl) {
-            config.deepLinkHandler!(linkingUrl);
-        }
-    }, [linkingUrl]);
+        if (!handler) return;
+        return subscribeToLinkingUrls(handler);
+    }, [handler]);
 
     return null;
 };

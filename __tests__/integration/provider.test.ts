@@ -94,31 +94,39 @@ describe('MfProvider composition', () => {
         expect(toJSON()).toBeDefined();
     });
 
-    it('deep link handler fires when linking URL is available', () => {
+    it('delivers initial and foreground deep links through the configured handler', async () => {
         const deepLinkHandler = jest.fn();
         const configModule = require('../../src/config');
         configModule.configureFoundation(
             createMockConfig({ deepLinkHandler }),
         );
 
-        // Set the linking URL before rendering
         const Linking = require('expo-linking');
-        (Linking.getInitialURL as jest.Mock).mockReturnValue(
-            Promise.resolve('myapp://test'),
-        );
+        let emitUrl!: (url: string) => void;
+        Linking.getInitialURL.mockReturnValue(Promise.resolve('myapp://initial'));
+        Linking.addEventListener.mockImplementation((_event: string, listener: (event: { url: string }) => void) => {
+            emitUrl = url => listener({ url });
+            return { remove: jest.fn() };
+        });
 
         const { MfProvider } = require('../../src/components/MfProvider');
         const React = require('react');
-        const { render } = require('@testing-library/react-native/pure');
+        const { act, render } = require('@testing-library/react-native/pure');
 
-        render(
-            React.createElement(MfProvider, null, null),
-        );
+        render(React.createElement(MfProvider, null, null));
+        await act(async () => {
+            await Promise.resolve();
+        });
 
-        // The deepLinkHandler gets called via useEffect after getLinkingUrl returns a value
-        // Since getLinkingUrl reads from a module-level variable set by getInitialURL().then(),
-        // and our mock resolves synchronously, we need to flush
-        // Note: the linking URL may not be set yet since getInitialURL is async
-        // This test primarily validates no crash occurs
+        act(() => {
+            emitUrl('myapp://foreground');
+            emitUrl('myapp://foreground');
+        });
+
+        expect(deepLinkHandler.mock.calls).toEqual([
+            ['myapp://initial'],
+            ['myapp://foreground'],
+            ['myapp://foreground'],
+        ]);
     });
 });

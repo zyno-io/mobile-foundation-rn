@@ -178,7 +178,7 @@ import {
 
 ### `getLinkingUrl()`
 
-Returns the current deep link URL, or `null`:
+Returns the most recently observed deep link URL, or `null` while the initial lookup is pending or when it found no URL:
 
 ```ts
 import { getLinkingUrl } from '@zyno-io/mobile-foundation-rn';
@@ -186,4 +186,4 @@ import { getLinkingUrl } from '@zyno-io/mobile-foundation-rn';
 const url = getLinkingUrl();
 ```
 
-Updated globally when the app receives a deep link via Expo Linking.
+Updated globally when the app receives a deep link via Expo Linking. Use `FoundationConfig.deepLinkHandler` to process events; unlike this latest-value helper, the handler receives repeated identical URLs separately.
