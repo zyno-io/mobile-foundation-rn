@@ -55,6 +55,36 @@ describe('MfProvider composition', () => {
         expect(child).not.toBeNull();
     });
 
+    it('provides its colorScheme override to foundation color hooks', () => {
+        const { useColorScheme } = require('react-native');
+        (useColorScheme as jest.Mock).mockReturnValue('light');
+
+        const configModule = require('../../src/config');
+        const config = createMockConfig();
+        configModule.configureFoundation(config);
+
+        const { MfProvider } = require('../../src/components/MfProvider');
+        const { useColors } = require('../../src/helpers/styles');
+        const React = require('react');
+        const { render } = require('@testing-library/react-native/pure');
+
+        let colors: any;
+        function TestComponent() {
+            colors = useColors();
+            return null;
+        }
+
+        render(
+            React.createElement(
+                MfProvider,
+                { colorScheme: 'dark' },
+                React.createElement(TestComponent),
+            ),
+        );
+
+        expect(colors.background).toBe(config.colors.dark.background);
+    });
+
     it('configures StatusBar when statusBar config is set', () => {
         const configModule = require('../../src/config');
         configModule.configureFoundation(

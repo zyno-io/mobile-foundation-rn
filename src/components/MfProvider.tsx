@@ -8,7 +8,7 @@ import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getFoundationConfig } from '../config';
-import { useColors } from '../helpers/styles';
+import { ColorSchemeOverrideContext, useColors } from '../helpers/styles';
 import { subscribeToLinkingUrls } from '../hooks/useLinkingUrl';
 
 import { GlobalLoaderOverlay } from './MfLoaderOverlay';
@@ -22,23 +22,26 @@ interface MfProviderProps {
 const MfProviderInner: React.FC<MfProviderProps> = ({ colorScheme: colorSchemeProp, children }) => {
     const systemColorScheme = useColorScheme();
     const colorScheme = colorSchemeProp ?? systemColorScheme;
+    const overrideColorScheme = colorSchemeProp === 'dark' || colorSchemeProp === 'light' ? colorSchemeProp : null;
 
     return (
         <ActionSheetProvider>
-            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-                <KeyboardProvider>
-                    <MfGlobalKeyboardProvider>
-                        <GestureHandlerRootView>
-                            <SafeAreaProvider>
-                            <FoundationStatusBar />
-                            <DeepLinkingHandler />
-                            {children}
-                            </SafeAreaProvider>
-                        </GestureHandlerRootView>
-                        <GlobalLoaderOverlay />
-                    </MfGlobalKeyboardProvider>
-                </KeyboardProvider>
-            </ThemeProvider>
+            <ColorSchemeOverrideContext.Provider value={overrideColorScheme}>
+                <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+                    <KeyboardProvider>
+                        <MfGlobalKeyboardProvider>
+                            <GestureHandlerRootView>
+                                <SafeAreaProvider>
+                                    <FoundationStatusBar />
+                                    <DeepLinkingHandler />
+                                    {children}
+                                </SafeAreaProvider>
+                            </GestureHandlerRootView>
+                            <GlobalLoaderOverlay />
+                        </MfGlobalKeyboardProvider>
+                    </KeyboardProvider>
+                </ThemeProvider>
+            </ColorSchemeOverrideContext.Provider>
         </ActionSheetProvider>
     );
 };
