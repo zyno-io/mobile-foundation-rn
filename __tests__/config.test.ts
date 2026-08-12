@@ -7,9 +7,23 @@ describe('config', () => {
     });
 
     it('throws if getFoundationConfig called before configureFoundation', () => {
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
         expect(() => configModule.getFoundationConfig()).toThrow(
             'configureFoundation() must be called before using foundation components',
         );
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+
+        errorSpy.mockRestore();
+    });
+
+    it('returns undefined without logging when the config has not been set', () => {
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+        expect(configModule.getFoundationConfigIfConfigured()).toBeUndefined();
+        expect(errorSpy).not.toHaveBeenCalled();
+
+        errorSpy.mockRestore();
     });
 
     it('returns config after configureFoundation is called', () => {

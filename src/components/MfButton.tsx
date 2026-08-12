@@ -1,15 +1,15 @@
 import { FontAwesomeIconStyle } from '@fortawesome/react-native-fontawesome';
 import React from 'react';
 import { StyleProp, TextStyle, ViewStyle } from 'react-native';
-import { Pressable, PressableProps } from 'react-native-gesture-handler';
 
 import { getFoundationConfig } from '../config';
 import { createStyles, useColors, useStyles } from '../helpers/styles';
 
 import { MfIcon, MfIconProps } from './MfIcon';
+import { MfPressable, MfPressableProps } from './MfPressable';
 import { MfText } from './MfText';
 
-interface MfButtonProps extends PressableProps {
+interface MfButtonProps extends MfPressableProps {
     primary?: boolean;
     style?: StyleProp<ViewStyle>;
     overrideStyle?: StyleProp<ViewStyle>;
@@ -48,7 +48,7 @@ export const MfButton: React.FC<MfButtonProps> = props => {
     const defaultIconColor = iconColorKey ? colors[iconColorKey] : props.primary ? styles.primaryButtonTitle.color : styles.buttonTitle.color;
 
     return (
-        <Pressable
+        <MfPressable
             style={({ pressed }) => [
                 pressed && feedback !== false && styles.pressed,
                 !overrideStyle && styles.button,
@@ -69,7 +69,7 @@ export const MfButton: React.FC<MfButtonProps> = props => {
             )}
             {!children && text && <MfText style={[styles.buttonTitle, primary && styles.primaryButtonTitle, textStyle]}>{text}</MfText>}
             {children}
-        </Pressable>
+        </MfPressable>
     );
 };
 

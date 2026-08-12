@@ -42,6 +42,7 @@ export const Animated = {
 
 export const useColorScheme = jest.fn(() => 'light');
 export const Pressable = 'Pressable';
+export const TouchableOpacity = 'TouchableOpacity';
 export const View = 'View';
 export const Text = 'Text';
 export const TextInput = 'TextInput';

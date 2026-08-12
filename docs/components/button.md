@@ -33,7 +33,7 @@ import { faSave, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 
 ## Props
 
-Extends all standard React Native `PressableProps`, plus:
+Extends [`MfPressableProps`](./pressable.md) — so it carries the same double-tap guard and accepts `pressThrottleMs` — plus:
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|

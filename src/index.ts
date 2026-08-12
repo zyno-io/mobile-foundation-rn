@@ -13,11 +13,15 @@ export { MfIcon } from './components/MfIcon';
 export type { MfIconProps } from './components/MfIcon';
 export { MfLoader, MfLoaderView } from './components/MfLoader';
 export { MfLoaderOverlay, GlobalLoaderOverlay } from './components/MfLoaderOverlay';
+export { MfPressable } from './components/MfPressable';
+export type { MfPressableProps } from './components/MfPressable';
 export { MfScrollView } from './components/MfScrollView';
 export type { MfScrollViewProps } from './components/MfScrollView';
 export { MfText, MfStatusTextView } from './components/MfText';
 export { MfTextArea } from './components/MfTextArea';
 export { MfTextInput } from './components/MfTextInput';
+export { MfTouchableOpacity } from './components/MfTouchableOpacity';
+export type { MfTouchableOpacityProps } from './components/MfTouchableOpacity';
 export { MfWrapperView } from './components/MfWrapperView';
 export type { MfWrapperViewCommonProps } from './components/MfWrapperView';
 
@@ -42,6 +46,7 @@ export { useNavigationWithTitle, useNavigationWithOptions } from './hooks/useNav
 export { useNextTextInputRef } from './hooks/useNextTextInputRef';
 export { getLinkingUrl } from './hooks/useLinkingUrl';
 export { useSetupFoundation } from './hooks/useSetupFoundation';
+export { useThrottledPress, DEFAULT_PRESS_THROTTLE_MS } from './hooks/useThrottledPress';
 export { useWaitTask } from './hooks/useWaitTask';
 
 // Helpers

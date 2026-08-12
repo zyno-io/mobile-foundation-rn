@@ -12,6 +12,12 @@ import { ColorScheme } from './types';
 export interface FoundationDefaults {
     /** Default fontFamily for `MfText` (and anything that renders it). Falls back to 'Inter'. */
     fontFamily?: string;
+    /**
+     * Window (ms) during which `MfPressable` / `MfTouchableOpacity` / `MfButton` ignore
+     * repeat presses after one fires — the app-wide double-tap guard. Falls back to 500.
+     * Set `0` to disable globally; individual call sites can override with `pressThrottleMs`.
+     */
+    pressThrottleMs?: number;
     /** Default color for a bare `<MfIcon>` with no explicit `color`. Falls back to `text`. */
     icon?: { colorKey?: string };
     button?: {
@@ -85,4 +91,12 @@ export function getFoundationConfig(): FoundationConfig {
         throw err;
     }
     return _config;
+}
+
+/**
+ * Returns the foundation configuration when available, without reporting an
+ * error for components rendered independently (for example in Storybook).
+ */
+export function getFoundationConfigIfConfigured(): FoundationConfig | undefined {
+    return _config ?? undefined;
 }
