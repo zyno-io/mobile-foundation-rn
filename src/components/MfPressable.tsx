@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, PressableProps } from 'react-native-gesture-handler';
+import { Pressable, PressableProps } from 'react-native';
 
 import { useThrottledPress } from '../hooks/useThrottledPress';
 
@@ -12,13 +12,18 @@ export interface MfPressableProps extends PressableProps {
 }
 
 /**
- * Drop-in replacement for `Pressable` with double-tap prevention wired by default.
- * Everything else — styling, `children` render prop, ref, gesture relations — is
- * passed straight through to `react-native-gesture-handler`'s `Pressable`.
+ * Drop-in replacement for React Native's `Pressable` with double-tap prevention
+ * wired by default. Everything else — styling, the `children` render prop, ref —
+ * is passed straight through.
+ *
+ * Use {@link MfGesturePressable} instead where the call site currently uses
+ * `react-native-gesture-handler`'s `Pressable`; the two are not interchangeable.
  */
-export const MfPressable: React.FC<MfPressableProps> = props => {
+export const MfPressable = React.forwardRef<React.ComponentRef<typeof Pressable>, MfPressableProps>((props, ref) => {
     const { pressThrottleMs, onPress, ...rest } = props;
     const throttledOnPress = useThrottledPress(onPress, pressThrottleMs);
 
-    return <Pressable onPress={throttledOnPress} {...rest} />;
-};
+    return <Pressable ref={ref} onPress={throttledOnPress} {...rest} />;
+});
+
+MfPressable.displayName = 'MfPressable';

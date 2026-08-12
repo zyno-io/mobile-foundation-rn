@@ -9,6 +9,8 @@ export { MfProvider } from './components/MfProvider';
 export { MfButton } from './components/MfButton';
 export { MfCheckbox } from './components/MfCheckbox';
 export { MfFlatList } from './components/MfFlatList';
+export { MfGesturePressable } from './components/MfGesturePressable';
+export type { MfGesturePressableProps } from './components/MfGesturePressable';
 export { MfIcon } from './components/MfIcon';
 export type { MfIconProps } from './components/MfIcon';
 export { MfLoader, MfLoaderView } from './components/MfLoader';

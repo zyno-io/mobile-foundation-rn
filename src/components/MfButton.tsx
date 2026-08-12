@@ -5,11 +5,11 @@ import { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { getFoundationConfig } from '../config';
 import { createStyles, useColors, useStyles } from '../helpers/styles';
 
+import { MfGesturePressable, MfGesturePressableProps } from './MfGesturePressable';
 import { MfIcon, MfIconProps } from './MfIcon';
-import { MfPressable, MfPressableProps } from './MfPressable';
 import { MfText } from './MfText';
 
-interface MfButtonProps extends MfPressableProps {
+interface MfButtonProps extends MfGesturePressableProps {
     primary?: boolean;
     style?: StyleProp<ViewStyle>;
     overrideStyle?: StyleProp<ViewStyle>;
@@ -48,7 +48,7 @@ export const MfButton: React.FC<MfButtonProps> = props => {
     const defaultIconColor = iconColorKey ? colors[iconColorKey] : props.primary ? styles.primaryButtonTitle.color : styles.buttonTitle.color;
 
     return (
-        <MfPressable
+        <MfGesturePressable
             style={({ pressed }) => [
                 pressed && feedback !== false && styles.pressed,
                 !overrideStyle && styles.button,
@@ -69,7 +69,7 @@ export const MfButton: React.FC<MfButtonProps> = props => {
             )}
             {!children && text && <MfText style={[styles.buttonTitle, primary && styles.primaryButtonTitle, textStyle]}>{text}</MfText>}
             {children}
-        </MfPressable>
+        </MfGesturePressable>
     );
 };
 

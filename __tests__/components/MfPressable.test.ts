@@ -203,6 +203,18 @@ describe('MfPressable', () => {
         expect(toJSON().props.onPress).toBeUndefined();
     });
 
+    it('renders the react-native Pressable, not the gesture-handler one', () => {
+        // The two are not interchangeable at the call site — RNGH gestures don't
+        // fire inside a RN <Modal>, so MfPressable must stay on RN's Pressable.
+        const gestureHandler = require('react-native-gesture-handler');
+        const spy = jest.spyOn(gestureHandler, 'Pressable');
+
+        renderPressable({ onPress: jest.fn() });
+
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+    });
+
     it('does not intercept other props', () => {
         const onLongPress = jest.fn();
         const { toJSON } = renderPressable({ onPress: jest.fn(), onLongPress, disabled: true, testID: 'x' });

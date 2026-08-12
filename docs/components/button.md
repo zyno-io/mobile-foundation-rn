@@ -33,7 +33,7 @@ import { faSave, faArrowRight } from '@fortawesome/free-solid-svg-icons';
 
 ## Props
 
-Extends [`MfPressableProps`](./pressable.md) — so it carries the same double-tap guard and accepts `pressThrottleMs` — plus:
+Extends [`MfGesturePressableProps`](./pressable.md) — so it carries the same double-tap guard and accepts `pressThrottleMs` — plus:
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
