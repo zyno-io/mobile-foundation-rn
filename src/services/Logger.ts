@@ -134,7 +134,7 @@ async function handleResponseError(err: any, alertOpts: AlertOptions | undefined
 
     targetLogger(err.stack);
 
-    if (err.message === 'Network request failed') {
+    if (isNetworkError(err)) {
         return showCommunicationError();
     }
 
@@ -146,6 +146,20 @@ async function handleResponseError(err: any, alertOpts: AlertOptions | undefined
         `An application error was encountered. Please try again. If the problem persists, contact ${supportContact}.\n\n` + err.message,
         alertOpts
     );
+}
+
+// RN's XHR-based fetch rejects with 'Network request failed'; Expo's winter fetch (SDK 52+)
+// throws FetchError('fetch failed: <native reason>') for TLS/DNS/offline failures. API clients
+// wrap these in their own Error (prefixing the original name), so match anywhere in the
+// message and walk the cause chain rather than comparing the top-level message exactly.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isNetworkError(err: any): boolean {
+    for (let e = err, depth = 0; e && depth < 5; e = e.cause, depth++) {
+        if (typeof e.message === 'string' && /Network request failed|fetch failed/i.test(e.message)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 export async function showCommunicationError() {
