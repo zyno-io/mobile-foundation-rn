@@ -90,6 +90,8 @@
     },
     "files": [
         "app.plugin.js",
+        "expo-module.config.json",
+        "ios",
         "plugin",
         "src"
     ],

@@ -12,6 +12,7 @@ const config: Config = {
         '^@/(.*)$': '<rootDir>/src/$1',
         // Map all peer/virtual dependencies to mock files
         '^react-native$': `${m}/react-native.ts`,
+        '^expo$': `${m}/expo.ts`,
         '^@react-native-async-storage/async-storage$': `${m}/async-storage.ts`,
         '^expo-file-system/legacy$': `${m}/expo-file-system-legacy.ts`,
         '^expo-file-system/next$': `${m}/expo-file-system-next.ts`,

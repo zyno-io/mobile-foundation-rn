@@ -6,7 +6,8 @@ import { Alert, AppState, Linking, Platform } from "react-native";
 
 import { getFoundationConfig } from "../config";
 import { LoaderState } from "../helpers/observable";
-import { useAppActivatedEffect } from "../hooks/useAppStateEffect";
+import { useAppStateEffect } from "../hooks/useAppStateEffect";
+import { getExpoUpdatesDatabaseDiagnostics } from "../native/MobileFoundationDiagnostics";
 import { AppMeta } from "./AppMeta";
 import { createLogger } from "./Logger";
 
@@ -62,6 +63,8 @@ let _installDeferralDisposer: (() => void) | null = null;
 
 /** How long to let the JS runtime settle before reloading to install an update. */
 const INSTALL_SETTLE_MS = 1500;
+/** Ignore transient activation pulses before starting a network-backed update check. */
+const FOREGROUND_UPDATE_SETTLE_MS = 500;
 /** Downloading gets its own deadline; entering the phase always starts a fresh timer. */
 const DOWNLOAD_STATUS_TIMEOUT_MS = 10_000;
 /** Consecutive install attempts (within the window) that revert to the embedded
@@ -88,6 +91,17 @@ function setUpdaterStatusText(text: string | null) {
   });
 }
 
+function describeUpdateError(err: unknown) {
+  if (!(err instanceof Error)) return { message: String(err) };
+  const code = "code" in err ? String(err.code) : undefined;
+  return {
+    name: err.name,
+    message: err.message,
+    stack: err.stack,
+    code,
+  };
+}
+
 export const Updater = {
   // ===================================================================
   // OTA updates
@@ -98,6 +112,7 @@ export const Updater = {
   },
 
   _updateCheckPromise: null as Promise<boolean> | null,
+  _foregroundUpdateTimeout: null as ReturnType<typeof setTimeout> | null,
   _shouldDeferUpdate: null as (() => boolean) | null,
   _installTimeout: null as ReturnType<typeof setTimeout> | null,
   _reloadInFlight: false,
@@ -188,15 +203,26 @@ export const Updater = {
       AppMeta.load()
         .then(() => Updater._startHeadersSync())
         .then(() => {
-          Updater.downloadUpdate();
+          Updater.scheduleForegroundUpdateCheck();
         });
     }, []);
 
     if (!AppMeta.isDevelopment) {
-      useAppActivatedEffect(() => {
-        Updater.downloadUpdate();
-        Updater._trySchedulePendingInstall();
+      useAppStateEffect((state) => {
+        if (state === "active") {
+          Updater.scheduleForegroundUpdateCheck();
+          Updater._trySchedulePendingInstall();
+        } else {
+          Updater._cancelScheduledUpdateCheck();
+        }
       });
+
+      useEffect(
+        () => () => {
+          Updater._cancelScheduledUpdateCheck();
+        },
+        [],
+      );
 
       const updates = Updates.useUpdates();
       useEffect(() => {
@@ -275,6 +301,25 @@ export const Updater = {
     return Updater._updateCheckPromise;
   },
 
+  scheduleForegroundUpdateCheck(delayMs = FOREGROUND_UPDATE_SETTLE_MS) {
+    Updater._cancelScheduledUpdateCheck();
+    Updater._foregroundUpdateTimeout = setTimeout(() => {
+      Updater._foregroundUpdateTimeout = null;
+      if (AppState.currentState !== "active") {
+        logger.info("Skipping update check (app not active)");
+        return;
+      }
+      void Updater.downloadUpdate();
+    }, delayMs);
+  },
+
+  _cancelScheduledUpdateCheck() {
+    if (!Updater._foregroundUpdateTimeout) return false;
+    clearTimeout(Updater._foregroundUpdateTimeout);
+    Updater._foregroundUpdateTimeout = null;
+    return true;
+  },
+
   async _downloadUpdate() {
     if (Updater.shouldDeferUpdate()) {
       logger.info("Skipping update check (deferred)");
@@ -287,7 +332,10 @@ export const Updater = {
       logger.info("Update check result", result);
       if (!result.isAvailable) return false;
     } catch (err) {
-      logger.error("Failed to check for updates", err);
+      // Update checks are opportunistic. Network interruption while iOS moves the
+      // app to the background is expected and should remain telemetry, not an
+      // application exception in crash reporting.
+      logger.warn("Failed to check for updates", describeUpdateError(err));
       return false;
     }
 
@@ -297,7 +345,7 @@ export const Updater = {
       Updater._lastDownloadedUpdateId = fetchedUpdateId(result);
       if (!Updater._lastDownloadedUpdateId) return false;
     } catch (err) {
-      logger.error("Failed to download update", err);
+      logger.warn("Failed to download update", describeUpdateError(err));
       return false;
     }
 
@@ -607,6 +655,8 @@ export const Updater = {
    * full set on a recovery (emergency) launch.
    */
   async _logNativeUpdateLog() {
+    await Updater._logEmergencyUpdateDiagnostics();
+
     try {
       const entries = await Updates.readLogEntriesAsync(5 * 60 * 1000);
       if (!entries.length) return;
@@ -675,7 +725,28 @@ export const Updater = {
         })),
       });
     } catch (err) {
-      logger.warn("Failed to read expo-updates native log", err);
+      logger.warn("Failed to read expo-updates native log", describeUpdateError(err));
+    }
+  },
+
+  /** Capture the Expo database fields used by the native launchability query.
+   *  This runs only after an emergency fallback and never reads manifests,
+   *  request headers, or update URLs. Older binaries without the native helper
+   *  report that the module is unavailable so an OTA can safely ship this code. */
+  async _logEmergencyUpdateDiagnostics() {
+    if (!Updates.isEmergencyLaunch) return;
+
+    try {
+      const database = await getExpoUpdatesDatabaseDiagnostics();
+      logger.warn("expo-updates emergency database diagnostics", {
+        emergencyLaunchReason: Updates.emergencyLaunchReason,
+        currentUpdateId: Updates.updateId,
+        currentRuntimeVersion: Updates.runtimeVersion,
+        isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+        database,
+      });
+    } catch (err) {
+      logger.warn("Failed to read expo-updates database diagnostics", describeUpdateError(err));
     }
   },
 
@@ -798,7 +869,7 @@ export const Updater = {
       runInAction(() => _nativeStatus.set(data));
       Updater._maybeShowNativeUpdateAlert();
     } catch (err) {
-      logger.error("Native status fetch error", err);
+      logger.warn("Native status fetch error", describeUpdateError(err));
     }
   },
 

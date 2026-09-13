@@ -8,6 +8,7 @@ export const runtimeVersion = '1.0.0';
 export const checkForUpdateAsync = jest.fn(() => Promise.resolve({ isAvailable: false }));
 export const fetchUpdateAsync = jest.fn(() => Promise.resolve({ isNew: false }));
 export const reloadAsync = jest.fn(() => Promise.resolve());
+export const readLogEntriesAsync = jest.fn(() => Promise.resolve([]));
 export const setExtraParamAsync = jest.fn(() => Promise.resolve());
 export const setUpdateRequestHeadersOverride = jest.fn();
 export const useUpdates = jest.fn(() => ({

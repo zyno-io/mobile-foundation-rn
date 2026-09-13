@@ -49,6 +49,40 @@ describe('Updater', () => {
         delete (global as any).fetch;
     });
 
+    describe('emergency launch diagnostics', () => {
+        it('captures the Expo Updates database state on an emergency launch', async () => {
+            const { Updater, Updates } = setup();
+            const Diagnostics = require('../../src/native/MobileFoundationDiagnostics');
+            const diagnostic = { nativeModuleAvailable: true, ok: true, updates: [] };
+            const collect = jest.spyOn(Diagnostics, 'getExpoUpdatesDatabaseDiagnostics').mockResolvedValue(diagnostic);
+            Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
+
+            await Updater._logNativeUpdateLog();
+
+            expect(collect).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not inspect the updates database after a normal launch', async () => {
+            const { Updater } = setup();
+            const Diagnostics = require('../../src/native/MobileFoundationDiagnostics');
+            const collect = jest.spyOn(Diagnostics, 'getExpoUpdatesDatabaseDiagnostics');
+
+            await Updater._logNativeUpdateLog();
+
+            expect(collect).not.toHaveBeenCalled();
+        });
+
+        it('does not report a native-log read failure as an application exception', async () => {
+            const { Updater, Updates } = setup();
+            const Sentry = require('@sentry/react-native');
+            (Updates.readLogEntriesAsync as jest.Mock).mockRejectedValueOnce(new Error('database busy'));
+
+            await Updater._logNativeUpdateLog();
+
+            expect(Sentry.captureException).not.toHaveBeenCalled();
+        });
+    });
+
     describe('OTA deferral', () => {
         it('shouldDeferUpdate is false with no listener', () => {
             const { Updater } = setup();
@@ -434,6 +468,44 @@ describe('Updater', () => {
     });
 
     describe('OTA download', () => {
+        it('waits for a stable foreground before checking after activation', async () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                const { AppState } = require('react-native');
+
+                Updater.scheduleForegroundUpdateCheck();
+                jest.advanceTimersByTime(499);
+                expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+
+                AppState.currentState = 'background';
+                jest.advanceTimersByTime(1);
+                await flushMicrotasks();
+                expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+
+                AppState.currentState = 'active';
+                Updater.scheduleForegroundUpdateCheck();
+                jest.advanceTimersByTime(500);
+                await flushMicrotasks();
+                expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('cancels a pending foreground check when the app deactivates', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                Updater.scheduleForegroundUpdateCheck();
+                expect(Updater._cancelScheduledUpdateCheck()).toBe(true);
+                jest.advanceTimersByTime(500);
+                expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
         it('downloads when an update is available (happy path)', async () => {
             const { Updater, Updates } = setup();
             (Updates.checkForUpdateAsync as jest.Mock).mockResolvedValueOnce({ isAvailable: true });
@@ -497,18 +569,22 @@ describe('Updater', () => {
 
         it('returns false when the check throws', async () => {
             const { Updater, Updates } = setup();
+            const Sentry = require('@sentry/react-native');
             (Updates.checkForUpdateAsync as jest.Mock).mockRejectedValueOnce(new Error('offline'));
             const result = await Updater.downloadUpdate();
             expect(result).toBe(false);
             expect(Updates.fetchUpdateAsync).not.toHaveBeenCalled();
+            expect(Sentry.captureException).not.toHaveBeenCalled();
         });
 
         it('returns false when the fetch throws', async () => {
             const { Updater, Updates } = setup();
+            const Sentry = require('@sentry/react-native');
             (Updates.checkForUpdateAsync as jest.Mock).mockResolvedValueOnce({ isAvailable: true });
             (Updates.fetchUpdateAsync as jest.Mock).mockRejectedValueOnce(new Error('fetch failed'));
             const result = await Updater.downloadUpdate();
             expect(result).toBe(false);
+            expect(Sentry.captureException).not.toHaveBeenCalled();
         });
 
         it('dedupes concurrent download calls', async () => {
