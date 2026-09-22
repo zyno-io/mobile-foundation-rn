@@ -13,6 +13,7 @@ const screens = [
     { name: 'ComposerPattern', label: '7. Composer in Tab Stack' },
     { name: 'ModalComposerPattern', label: '8. Modal Composer' },
     { name: 'NestedScrollInputs', label: '9. Nested Scroll Inputs' },
+    { name: 'LongFormMidInputs', label: '10. Long Form — Mid Inputs' },
 ];
 
 export const HomeScreen: React.FC = () => {

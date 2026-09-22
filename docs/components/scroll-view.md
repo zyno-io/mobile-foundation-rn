@@ -39,8 +39,10 @@ The `MfScrollViewProps` type is exported for use in custom component props.
 When an input inside the scroll view receives focus:
 
 1. The scroll view detects the focused input via `MfActiveTextInputContext`
-2. It measures the input's position relative to the scroll view
-3. It scrolls to position the input in the visible area above the keyboard
+2. When its visible area changes (the keyboard opening shrinks it), it measures the input's position relative to the scroll view's content
+3. If the input is not already fully visible, it scrolls just far enough to show it, keeping a small gap from the edge — an input that is already fully visible is left where it is
 4. The scroll animation is smooth and non-jarring
+
+The measurement is independent of how far the scroll view is already scrolled, so inputs deep in a long form (e.g. when large accessibility text pushes them below the fold) land in view rather than overshooting.
 
 This works with both `MfTextInput` and `MfTextArea`, and integrates with `MfForm` keyboard navigation.

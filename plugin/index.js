@@ -9,6 +9,7 @@ const {
     withAndroidBuildProperties,
 } = require("./android-build-properties");
 const { withDetox } = require("./detox");
+const withUIScene = require("./ui-scene");
 
 const ANDROID_NAMESPACE_PATTERN =
     /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -91,7 +92,14 @@ const withMobileFoundation = (config, options = {}) => {
         androidBuildProperties,
         androidNamespace,
         detox,
+        uiScene,
     } = options;
+
+    // The iOS 27 SDK refuses to launch apps without the UIScene life cycle, which Expo's template
+    // does not adopt. On by default; set `uiScene: false` when the app adopts scenes itself.
+    if (uiScene !== false) {
+        config = withUIScene(config);
+    }
 
     // Keep the plugin safe when Expo adds it automatically without options.
     if (androidNamespace !== undefined) {
@@ -134,3 +142,4 @@ module.exports.withAndroidBuildProperties = withAndroidBuildProperties;
 module.exports.withAndroidNamespace = withAndroidNamespace;
 module.exports.withDetox = withDetox;
 module.exports.withMobileFoundation = withMobileFoundation;
+module.exports.withUIScene = withUIScene;

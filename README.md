@@ -28,8 +28,9 @@ Your app must install these packages:
 ## Expo Config Plugins
 
 The package includes reusable Expo config plugins for Android identity, raw
-Gradle settings, and Detox native setup. They run during `expo prebuild`, so
-generated Android files do not need to be committed or patched in CI.
+Gradle settings, Detox native setup, and the iOS UIScene life cycle. They run
+during `expo prebuild`, so generated native files do not need to be committed
+or patched in CI.
 
 ### Android Identity
 
@@ -157,6 +158,25 @@ when those values differ:
     }
 ]
 ```
+
+### iOS UIScene Life Cycle
+
+Apps built with the iOS 27 SDK refuse to launch unless they adopt the UIScene
+life cycle ("UIScene life cycle is required for apps built with this SDK"),
+which Expo's bare template does not do. The combined plugin therefore adds a
+single-window `UIApplicationSceneManifest` to `Info.plist` and rewrites the
+generated `AppDelegate.swift` so a `SceneDelegate` creates the window and
+starts React Native — subclassing Expo's `ExpoAppSceneDelegate` when the
+installed Expo ships it (57.0.2x+), otherwise generating a self-contained
+delegate that forwards scene life-cycle events, URLs, universal links, and
+quick actions back to the app delegate. It is on by default; opt out when the
+app adopts scenes itself:
+
+```json
+["@zyno-io/mobile-foundation-rn", { "uiScene": false }]
+```
+
+The standalone entry point is `@zyno-io/mobile-foundation-rn/plugin/ui-scene`.
 
 `allowCleartextTraffic` defaults to `false`; enable it only for a dedicated E2E
 build that does not manage cleartext traffic through its own manifest or

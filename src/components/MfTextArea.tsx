@@ -59,7 +59,7 @@ export const MfTextArea = React.forwardRef<TextInput, TextInputProps & MfTextAre
             placeholder={placeholder}
             placeholderTextColor={localStyles.placeholder.color}
             style={[localStyles.textArea, disabled && localStyles.disabled, style]}
-            {...props}
+            {...nativeProps}
         />
     );
 });

@@ -23,7 +23,13 @@
     "newArchEnabled": true,
     "plugins": [
       "expo-font",
-      ["@sentry/react-native", { "organization": "test", "project": "test" }],
+      [
+        "@sentry/react-native",
+        {
+          "organization": "test",
+          "project": "test"
+        }
+      ],
       [
         "@zyno-io/mobile-foundation-rn",
         {

@@ -23,6 +23,7 @@ import { FormKeyboardNavigationScreen } from './src/screens/FormKeyboardNavigati
 import { ComposerPatternScreen } from './src/screens/ComposerPattern';
 import { ModalComposerPatternScreen } from './src/screens/ModalComposerPattern';
 import { NestedScrollInputsScreen } from './src/screens/NestedScrollInputs';
+import { LongFormMidInputsScreen } from './src/screens/LongFormMidInputs';
 
 const screens = [
     { name: 'FullViewBottomInput', label: '1. Full View — Bottom Input' },
@@ -34,6 +35,7 @@ const screens = [
     { name: 'ComposerPattern', label: '7. Composer in Tab Stack' },
     { name: 'ModalComposerPattern', label: '8. Modal Composer' },
     { name: 'NestedScrollInputs', label: '9. Nested Scroll Inputs' },
+    { name: 'LongFormMidInputs', label: '10. Long Form — Mid Inputs' },
 ];
 
 const RootStack = createStackNavigator();
@@ -124,6 +126,7 @@ function AppContent() {
                 <RootStack.Screen name="ComposerPattern" component={ComposerTabNavigator} options={{ ...NavigatorOptions.Headerless }} />
                 <RootStack.Screen name="ModalComposerPattern" component={ModalComposerPatternScreen} options={{ ...NavigatorOptions.Modal, headerShown: true, title: 'New Message' }} />
                 <RootStack.Screen name="NestedScrollInputs" component={NestedScrollInputsScreen} options={{ ...NavigatorOptions.CommonHeader, title: 'Nested Scroll Test' }} />
+                <RootStack.Screen name="LongFormMidInputs" component={LongFormMidInputsScreen} options={{ ...NavigatorOptions.CommonHeader, title: 'Long Form Test' }} />
             </RootStack.Navigator>
         </NavigationContainer>
     );

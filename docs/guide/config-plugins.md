@@ -1,8 +1,9 @@
 # Expo Config Plugins
 
 Mobile Foundation ships reusable Expo config plugins for Android identity,
-build settings, and Detox. They run during `npx expo prebuild`, so generated
-native files do not need to be edited or committed.
+build settings, Detox, and the iOS UIScene life cycle. They run during
+`npx expo prebuild`, so generated native files do not need to be edited or
+committed.
 
 ## Combined plugin
 
@@ -39,6 +40,41 @@ Use the package root when an app needs more than one capability:
 `androidAppName` changes the launcher label without changing `expo.name`.
 `androidNamespace` changes the Gradle namespace and Java/Kotlin source package
 without changing the `expo.android.package` application ID.
+The [UIScene life cycle](#ios-uiscene-life-cycle) plugin is applied
+automatically; pass `"uiScene": false` to opt out.
+
+## iOS UIScene life cycle
+
+Apps built with the iOS 27 SDK (Xcode 27) must adopt the UIScene life cycle or
+they refuse to launch:
+
+```
+Application failed to launch: UIScene life cycle is required for apps built with this SDK.
+```
+
+Expo's bare template still uses the app-delegate life cycle, so the combined
+plugin adopts scenes on every prebuild. The standalone entry point does the
+same for apps that do not use the combined plugin:
+
+```json
+["@zyno-io/mobile-foundation-rn/plugin/ui-scene"]
+```
+
+The plugin:
+
+- adds a single-window `UIApplicationSceneManifest` to `Info.plist`
+- rewrites the generated `AppDelegate.swift` so a `SceneDelegate` creates the
+  window and starts React Native. With Expo 57.0.2x and later the delegate
+  subclasses Expo's own `ExpoAppSceneDelegate` (and the app delegate conforms
+  to `ExpoReactNativeFactoryProvider`), so Expo forwards scene life-cycle
+  events, URLs, universal links, and quick actions to the app delegate. Older
+  Expo versions get a self-contained delegate that does the same forwarding, so
+  Expo modules and React Native's `Linking` (including `getInitialURL`) keep
+  working either way.
+
+It is a no-op when the project already adopts scenes, and it fails the prebuild
+if `AppDelegate.swift` no longer matches the Expo template — adopt scenes in
+the app itself and set `uiScene: false` in that case.
 
 ## Android build properties
 

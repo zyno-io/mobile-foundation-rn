@@ -1,3 +1,4 @@
+import { execSync } from 'child_process';
 import { device, element, by, waitFor, expect as detoxExpect } from 'detox';
 
 /** Launch the app fresh and apply platform-specific setup */
@@ -103,4 +104,82 @@ export async function assertAboveKeyboard(testID: string) {
             `Threshold: ${threshold}. Frame: ${JSON.stringify(frame)}`,
         );
     }
+}
+
+/**
+ * Enable or disable the system "larger text" setting — Dynamic Type on iOS, font scale on Android.
+ * Relaunch the app afterwards (`launchApp`/`reloadApp`) so the new scale is picked up.
+ */
+export async function setLargerText(enabled: boolean) {
+    if (device.getPlatform() === 'ios') {
+        // accessibility-large ≈ 2.1x font scale; large is the iOS default
+        const size = enabled ? 'accessibility-large' : 'large';
+        execSync(`xcrun simctl bootstatus ${device.id} -b`, { stdio: 'ignore' });
+        execSync(`xcrun simctl ui ${device.id} content_size ${size}`, { stdio: 'inherit' });
+    } else {
+        const scale = enabled ? '1.5' : '1.0';
+        execSync(`adb -s ${device.id} shell settings put system font_scale ${scale}`, { stdio: 'inherit' });
+    }
+}
+
+export interface ScreenMetrics {
+    /** Screen height in dp/points (as reported by `Dimensions.get('screen')`) */
+    screenHeight: number;
+    /** Keyboard height in dp/points, 0 while closed */
+    keyboardHeight: number;
+    fontScale: number;
+    pixelRatio: number;
+}
+
+/** Read the metrics readout a test screen exposes via `testID="metrics"` (accessibilityLabel holds JSON). */
+export async function getMetrics(): Promise<ScreenMetrics> {
+    const attrs = await element(by.id('metrics')).getAttributes() as any;
+    const raw: string = attrs.label ?? attrs.text;
+    if (!raw) throw new Error(`metrics element has no label/text: ${JSON.stringify(attrs)}`);
+    return JSON.parse(raw);
+}
+
+/**
+ * Multiplier converting dp/points to the unit Detox reports frames in:
+ * points on iOS (1x), physical pixels on Android (the pixel ratio).
+ */
+export function frameScale(metrics: ScreenMetrics) {
+    return device.getPlatform() === 'android' ? metrics.pixelRatio : 1;
+}
+
+/**
+ * Assert an element sits entirely inside its scroll view's frame while the keyboard is open — i.e.
+ * auto-scroll neither left it under the keyboard nor overshot and cut off its top. MfWrapperView pads the
+ * scroll view by the keyboard height, so the scroll view's frame ends at the keyboard line; the keyboard
+ * line is checked again from the metrics readout as a second opinion.
+ */
+export async function assertFullyVisibleAboveKeyboard(testID: string, scrollViewID = 'scroll-view') {
+    const metrics = await getMetrics();
+    if (metrics.keyboardHeight <= 0) {
+        throw new Error(`Keyboard is not open (metrics: ${JSON.stringify(metrics)})`);
+    }
+    const frame = await getElementFrame(testID);
+    const scrollFrame = await getElementFrame(scrollViewID);
+
+    const scale = frameScale(metrics);
+    const keyboardTop = (metrics.screenHeight - metrics.keyboardHeight) * scale;
+    const tolerance = 2 * scale;
+    const describe = () =>
+        `Frame: ${JSON.stringify(frame)}. Scroll view frame: ${JSON.stringify(scrollFrame)}. ` +
+        `Keyboard top: ${keyboardTop}. Metrics: ${JSON.stringify(metrics)}`;
+
+    const top = frame.y;
+    const bottom = frame.y + frame.height;
+    const scrollBottom = scrollFrame.y + scrollFrame.height;
+    if (top < scrollFrame.y - tolerance) {
+        throw new Error(`Element "${testID}" top (${top}) is cut off above the scroll view. ${describe()}`);
+    }
+    if (bottom > scrollBottom + tolerance) {
+        throw new Error(`Element "${testID}" bottom (${bottom}) is below the scroll view (under the keyboard). ${describe()}`);
+    }
+    if (bottom > keyboardTop + tolerance) {
+        throw new Error(`Element "${testID}" bottom (${bottom}) is under the keyboard line. ${describe()}`);
+    }
+    // 95 rather than 100: sub-point clipping after a fractional scroll offset must not fail the suite
+    await detoxExpect(element(by.id(testID))).toBeVisible(95);
 }
