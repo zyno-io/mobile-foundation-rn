@@ -57,6 +57,8 @@ Reloads the app with the downloaded update or the embedded bundle when Expo has 
 
 Expo's native selection policy decides whether a directive applies. A rejected directive or an app without an embedded bundle is left unchanged.
 
+An installed app that ignores embedded rollback directives must first receive a newer OTA update or native binary carrying this updater fix. Restarting that build does not replace its updater code. Publishing a known-good bundle as a new OTA manifest can recover these clients because they already handle ordinary newer updates.
+
 ### `setUpdateDeferralListener(listener)`
 
 ```ts
