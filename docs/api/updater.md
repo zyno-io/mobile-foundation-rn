@@ -45,7 +45,7 @@ Possible values:
 const available = await Updater.downloadUpdate();
 ```
 
-Checks for and downloads an available update. Returns `true` if an update was downloaded.
+Checks for and downloads an available update, including Expo's `rollBackToEmbedded` directive. Returns `true` if an update or an embedded rollback is ready to install. Expo reports an embedded rollback with `isAvailable: false` and `isNew: false`; the updater checks `isRollBackToEmbedded` and fetches it explicitly.
 
 ### `installUpdate()`
 
@@ -53,7 +53,9 @@ Checks for and downloads an available update. Returns `true` if an update was do
 Updater.installUpdate();
 ```
 
-Reloads the app with the downloaded update.
+Reloads the app with the downloaded update or the embedded bundle when Expo has accepted a rollback directive. The foundation hook schedules this automatically, respecting app readiness, foreground state, and update deferral. An intentional embedded rollback is separate from an unknown update ID and is not counted as a failed OTA install. If the app already runs the embedded bundle, it does not reload again.
+
+Expo's native selection policy decides whether a directive applies. A rejected directive or an app without an embedded bundle is left unchanged.
 
 ### `setUpdateDeferralListener(listener)`
 

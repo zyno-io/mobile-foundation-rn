@@ -532,12 +532,12 @@ describe('Updater', () => {
             const result = await Updater.downloadUpdate();
 
             expect(result).toBe(true);
-            expect(Updater._lastDownloadedUpdateId).toBe('fix-forward-update');
+            expect(Updater._lastDownloadedInstallTarget).toBe('fix-forward-update');
         });
 
         it('does not remember a fetched result without a launchable update id', async () => {
             const { Updater, Updates } = setup();
-            Updater._lastDownloadedUpdateId = 'stale-update';
+            Updater._lastDownloadedInstallTarget = 'stale-update';
             (Updates.checkForUpdateAsync as jest.Mock).mockResolvedValueOnce({ isAvailable: true });
             (Updates.fetchUpdateAsync as jest.Mock).mockResolvedValueOnce({
                 isNew: false,
@@ -548,7 +548,7 @@ describe('Updater', () => {
             const result = await Updater.downloadUpdate();
 
             expect(result).toBe(false);
-            expect(Updater._lastDownloadedUpdateId).toBeNull();
+            expect(Updater._lastDownloadedInstallTarget).toBeNull();
         });
 
         it('does not fetch when no update is available', async () => {
@@ -593,6 +593,135 @@ describe('Updater', () => {
             expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
             expect(a).toBe(false);
             expect(b).toBe(false);
+        });
+    });
+
+    describe('embedded rollback', () => {
+        const rollbackTarget = { type: 'rollback' };
+
+        it('fetches a rollback check with isAvailable=false and reloads without recording a failed OTA attempt', async () => {
+            const { Updater, Updates } = setup();
+            Updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: false, isRollBackToEmbedded: true });
+            Updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: false, isRollBackToEmbedded: true, manifest: undefined });
+            const record = jest.spyOn(Updater, '_recordInstallAttempt');
+
+            const available = await Updater.downloadUpdate();
+            expect(available).toBe(true);
+            expect(Updates.fetchUpdateAsync).toHaveBeenCalledTimes(1);
+            expect(Updater._lastDownloadedInstallTarget).toEqual(rollbackTarget);
+            await Updater.installUpdate();
+            expect(Updates.reloadAsync).toHaveBeenCalledTimes(1);
+            expect(record).not.toHaveBeenCalled();
+        });
+
+        it('handles a rollback returned by fetch after a normal update check', async () => {
+            const { Updater, Updates } = setup();
+            Updater._lastDownloadedInstallTarget = 'stale-update';
+            Updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: true, isRollBackToEmbedded: false });
+            Updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: false, isRollBackToEmbedded: true, manifest: undefined });
+            const available = await Updater.downloadUpdate();
+            expect(available).toBe(true);
+            expect(Updater._lastDownloadedInstallTarget).toEqual(rollbackTarget);
+        });
+
+        it('uses the actual fetch result when a fix-forward replaces a rollback between requests', async () => {
+            const { Updater, Updates } = setup();
+            Updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: false, isRollBackToEmbedded: true });
+            Updates.fetchUpdateAsync.mockResolvedValueOnce({ isNew: true, isRollBackToEmbedded: false, manifest: { id: 'fix-forward' } });
+            const available = await Updater.downloadUpdate();
+            expect(available).toBe(true);
+            expect(Updater._lastDownloadedInstallTarget).toBe('fix-forward');
+        });
+
+        it.each(['rollbackNoEmbeddedConfiguration', 'rollbackRejectedBySelectionPolicy'])(
+            'leaves Expo in control when it rejects a directive: %s', async (reason) => {
+                const { Updater, Updates } = setup();
+                Updates.checkForUpdateAsync.mockResolvedValueOnce({ isAvailable: false, isRollBackToEmbedded: false, reason });
+                const available = await Updater.downloadUpdate();
+                expect(available).toBe(false);
+                expect(Updates.fetchUpdateAsync).not.toHaveBeenCalled();
+                expect(Updates.reloadAsync).not.toHaveBeenCalled();
+            }
+        );
+
+        it('lets an explicit rollback pass the failed-update circuit while preserving suppression of unknown installs', async () => {
+            const { Updater, Updates } = setup();
+            Updater._circuitOpen = true;
+            Updater._suppressedUpdateId = null;
+            Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
+            expect(Updater._canAutoInstallPendingUpdate(null)).toBe(false);
+            expect(Updater._canAutoInstallPendingUpdate(rollbackTarget)).toBe(true);
+            await Updater.installUpdate(rollbackTarget);
+            expect(Updates.reloadAsync).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not reload an already embedded launch', async () => {
+            const { Updater, Updates } = setup();
+            Object.defineProperty(Updates, 'isEmbeddedLaunch', { value: true, configurable: true });
+            expect(Updater._canAutoInstallPendingUpdate(rollbackTarget)).toBe(false);
+            await Updater.installUpdate(rollbackTarget);
+            expect(Updates.reloadAsync).not.toHaveBeenCalled();
+        });
+
+        it('keeps a hook rollback distinct from an unknown id, waits for startup/readiness and retries after call deferral clears', async () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                const React = require('react');
+                const { render, act } = require('@testing-library/react-native/pure');
+                const { observable, runInAction } = require('mobx');
+                const deferred = observable.box(true);
+                Updater.setUpdateDeferralListener(() => deferred.get());
+                let updateState = {
+                    isStartupProcedureRunning: true, isRestarting: false, isDownloading: false,
+                    isUpdatePending: true, isChecking: false,
+                    downloadedUpdate: { type: Updates.UpdateInfoType.ROLLBACK, updateId: undefined }
+                };
+                Updates.useUpdates.mockImplementation(() => updateState);
+                Updater._lastDownloadedInstallTarget = 'stale-download';
+                const record = jest.spyOn(Updater, '_recordInstallAttempt');
+                function Harness({ ready }: { ready: boolean }) {
+                    Updater._useHook(ready);
+                    return null;
+                }
+                const view = render(React.createElement(Harness, { ready: false }));
+                expect(Updater._pendingInstallTarget).toEqual(rollbackTarget);
+                expect(Updater._installTimeout).toBeNull();
+                updateState = { ...updateState, isStartupProcedureRunning: false };
+                view.rerender(React.createElement(Harness, { ready: true }));
+                expect(Updater.statusText).toBeNull();
+                expect(Updater._installTimeout).toBeNull();
+                act(() => runInAction(() => deferred.set(false)));
+                expect(Updater._installTimeout).not.toBeNull();
+                act(() => jest.advanceTimersByTime(1500));
+                await flushMicrotasks();
+                expect(Updates.reloadAsync).toHaveBeenCalledTimes(1);
+                expect(record).not.toHaveBeenCalled();
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('waits until the app returns to the foreground before installing a pending rollback', async () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                const { AppState } = require('react-native');
+                Updater._pendingInstallTarget = rollbackTarget;
+                AppState.currentState = 'background';
+                Updater._trySchedulePendingInstall();
+                expect(Updater._installTimeout).toBeNull();
+                await Updater.installUpdate(rollbackTarget);
+                expect(Updates.reloadAsync).not.toHaveBeenCalled();
+                AppState.currentState = 'active';
+                Updater._trySchedulePendingInstall();
+                jest.advanceTimersByTime(1500);
+                await flushMicrotasks();
+                expect(Updates.reloadAsync).toHaveBeenCalledTimes(1);
+            } finally {
+                jest.useRealTimers();
+            }
         });
     });
 
@@ -659,7 +788,7 @@ describe('Updater', () => {
             const { Updater, Updates } = setup();
             Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
             Updater._lastFailedUpdateId = 'failed-update';
-            Updater._lastDownloadedUpdateId = 'fix-forward-update';
+            Updater._lastDownloadedInstallTarget = 'fix-forward-update';
             const record = jest.spyOn(Updater, '_recordInstallAttempt');
 
             await Updater.installUpdate();
@@ -671,7 +800,7 @@ describe('Updater', () => {
         it('blocks a downloaded update on emergency launch when the failed id is unknown', async () => {
             const { Updater, Updates } = setup();
             Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
-            Updater._lastDownloadedUpdateId = 'fix-forward-update';
+            Updater._lastDownloadedInstallTarget = 'fix-forward-update';
 
             await Updater.installUpdate();
 
@@ -683,8 +812,8 @@ describe('Updater', () => {
             const { Updater, Updates } = setup();
             Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
             Updater._lastFailedUpdateId = 'failed-update';
-            Updater._pendingInstallUpdateId = null;
-            Updater._lastDownloadedUpdateId = 'fix-forward-update';
+            Updater._pendingInstallTarget = null;
+            Updater._lastDownloadedInstallTarget = 'fix-forward-update';
             const record = jest.spyOn(Updater, '_recordInstallAttempt');
 
             await Updater.installUpdate();
@@ -695,8 +824,8 @@ describe('Updater', () => {
 
         it('uses a known hook pending id before a stale downloaded id', async () => {
             const { Updater, Updates } = setup();
-            Updater._pendingInstallUpdateId = 'pending-update';
-            Updater._lastDownloadedUpdateId = 'stale-download';
+            Updater._pendingInstallTarget = 'pending-update';
+            Updater._lastDownloadedInstallTarget = 'stale-download';
             const record = jest.spyOn(Updater, '_recordInstallAttempt');
 
             await Updater.installUpdate();
@@ -711,7 +840,7 @@ describe('Updater', () => {
                 const { Updater, Updates } = setup();
                 Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
                 Updater._lastFailedUpdateId = 'failed-update';
-                Updater._lastDownloadedUpdateId = 'fix-forward-update';
+                Updater._lastDownloadedInstallTarget = 'fix-forward-update';
                 const record = jest.spyOn(Updater, '_recordInstallAttempt');
 
                 Updater.scheduleInstallUpdate(250);
@@ -729,7 +858,7 @@ describe('Updater', () => {
             const { Updater, Updates } = setup();
             Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
             Updater._lastFailedUpdateId = 'failed-update';
-            Updater._lastDownloadedUpdateId = 'failed-update';
+            Updater._lastDownloadedInstallTarget = 'failed-update';
 
             await Updater.installUpdate();
 
@@ -743,7 +872,7 @@ describe('Updater', () => {
                 const { Updater, Updates } = setup();
                 Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
                 Updater._lastFailedUpdateId = 'failed-update';
-                Updater._lastDownloadedUpdateId = 'fix-forward-update';
+                Updater._lastDownloadedInstallTarget = 'fix-forward-update';
 
                 Updater.scheduleInstallUpdate(null, 250);
                 jest.advanceTimersByTime(250);
@@ -760,7 +889,7 @@ describe('Updater', () => {
             const { Updater, Updates } = setup();
             Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
             Updater._lastFailedUpdateId = 'failed-update';
-            Updater._lastDownloadedUpdateId = 'fix-forward-update';
+            Updater._lastDownloadedInstallTarget = 'fix-forward-update';
 
             await Updater.installUpdate(null);
 
@@ -770,7 +899,7 @@ describe('Updater', () => {
 
         it('does not auto-schedule a pending install while updates are deferred', () => {
             const { Updater } = setup();
-            Updater._pendingInstallUpdateId = 'update-1';
+            Updater._pendingInstallTarget = 'update-1';
             Updater.setUpdateDeferralListener(() => true);
 
             Updater._trySchedulePendingInstall();
@@ -803,7 +932,7 @@ describe('Updater', () => {
                 const { Updater, Updates } = setup();
                 const { observable, runInAction } = require('mobx');
                 const deferred = observable.box(true);
-                Updater._pendingInstallUpdateId = 'update-1';
+                Updater._pendingInstallTarget = 'update-1';
                 Updater.setUpdateDeferralListener(() => deferred.get());
 
                 Updater._trySchedulePendingInstall();

@@ -13,8 +13,16 @@ import { createLogger } from "./Logger";
 
 const logger = createLogger("Updater");
 
-function fetchedUpdateId(result: Updates.UpdateFetchResult): string | null {
-  if (!result.isNew || result.isRollBackToEmbedded) return null;
+type UpdateInstallTarget = string | { type: Updates.UpdateInfoType.ROLLBACK } | null;
+const EMBEDDED_ROLLBACK: UpdateInstallTarget = { type: Updates.UpdateInfoType.ROLLBACK };
+
+function isEmbeddedRollback(target: UpdateInstallTarget): boolean {
+  return typeof target === "object" && target !== null && target.type === Updates.UpdateInfoType.ROLLBACK;
+}
+
+function fetchedInstallTarget(result: Updates.UpdateFetchResult): UpdateInstallTarget {
+  if (result.isRollBackToEmbedded) return EMBEDDED_ROLLBACK;
+  if (!result.isNew) return null;
   const id = result.manifest?.id;
   return typeof id === "string" && id.length > 0 ? id : null;
 }
@@ -123,7 +131,7 @@ export const Updater = {
    *  _suppressedUpdateId, which is null when the looping update id is unknown. */
   _circuitOpen: false,
   /** Update id the install-loop circuit is suppressing; null means "unknown id"
-   *  (rollback / legacy state) → suppress all installs while the circuit is open. */
+   *  (legacy state) → suppress all installs while the circuit is open. */
   _suppressedUpdateId: null as string | null,
   /** Last recorded install attempt observed during an embedded/recovery launch.
    *  Used to recognize a fix-forward before the loop circuit fully opens. */
@@ -138,12 +146,12 @@ export const Updater = {
    *  readiness have completed. Default true preserves direct/test installs that
    *  do not mount the foundation hook. */
   _appReady: true,
-  /** Last pending update observed from useUpdates(); used to retry deferred
+  /** Last pending install target observed from useUpdates(); used to retry deferred
    *  installs when the app returns to the foreground. */
-  _pendingInstallUpdateId: undefined as string | null | undefined,
-  /** Last update id returned by fetchUpdateAsync(); lets documented no-arg install
+  _pendingInstallTarget: undefined as UpdateInstallTarget | undefined,
+  /** Last install target returned by fetchUpdateAsync(); lets documented no-arg install
    *  calls make the same recovery/fix-forward decision as hook-driven installs. */
-  _lastDownloadedUpdateId: undefined as string | null | undefined,
+  _lastDownloadedInstallTarget: undefined as UpdateInstallTarget | undefined,
 
   /**
    * Register a predicate that, while it returns true, defers BOTH an OTA reload
@@ -273,20 +281,23 @@ export const Updater = {
         } else if (statusPhase === "downloading" && !phaseTimedOut) {
           text = "Downloading update...";
         } else if (statusPhase === "installing") {
-          const pendingId = updates.downloadedUpdate?.updateId ?? null;
-          Updater._pendingInstallUpdateId = pendingId;
+          const pendingTarget =
+            updates.downloadedUpdate?.type === Updates.UpdateInfoType.ROLLBACK
+              ? EMBEDDED_ROLLBACK
+              : updates.downloadedUpdate?.updateId ?? null;
+          Updater._pendingInstallTarget = pendingTarget;
           // Retain the pending status internally while user-facing updates are
           // deferred, so it can reappear and install as soon as deferral clears.
-          if (Updater._canAutoInstallPendingUpdate(pendingId, true, true)) {
+          if (Updater._canAutoInstallPendingUpdate(pendingTarget, true, true)) {
             text = "Installing update...";
             if (!Updater.shouldDeferUpdate() && !Updater._isStartupProcedureRunning) {
-              Updater.scheduleInstallUpdate(pendingId);
+              Updater.scheduleInstallUpdate(pendingTarget);
             }
           }
         } else if (statusPhase === "checking" && !phaseTimedOut) {
           text = "Checking for updates...";
         } else {
-          Updater._pendingInstallUpdateId = undefined;
+          Updater._pendingInstallTarget = undefined;
         }
         setUpdaterStatusText(text);
       }, [updates, statusPhase, timedOutPhase, appReady]);
@@ -330,7 +341,7 @@ export const Updater = {
       logger.info("Performing update check");
       const result = await Updates.checkForUpdateAsync();
       logger.info("Update check result", result);
-      if (!result.isAvailable) return false;
+      if (!result.isAvailable && !result.isRollBackToEmbedded) return false;
     } catch (err) {
       // Update checks are opportunistic. Network interruption while iOS moves the
       // app to the background is expected and should remain telemetry, not an
@@ -342,8 +353,8 @@ export const Updater = {
     try {
       const result = await Updates.fetchUpdateAsync();
       logger.info("Update fetch result", result);
-      Updater._lastDownloadedUpdateId = fetchedUpdateId(result);
-      if (!Updater._lastDownloadedUpdateId) return false;
+      Updater._lastDownloadedInstallTarget = fetchedInstallTarget(result);
+      if (!Updater._lastDownloadedInstallTarget) return false;
     } catch (err) {
       logger.warn("Failed to download update", describeUpdateError(err));
       return false;
@@ -353,19 +364,19 @@ export const Updater = {
   },
 
   scheduleInstallUpdate(
-    pendingUpdateIdOrDelayMs?: string | number | null,
+    targetOrDelayMs?: UpdateInstallTarget | number,
     delayMs = INSTALL_SETTLE_MS,
   ) {
-    const pendingUpdateId =
-      typeof pendingUpdateIdOrDelayMs === "number" ? undefined : pendingUpdateIdOrDelayMs;
+    const pendingTarget =
+      typeof targetOrDelayMs === "number" ? undefined : targetOrDelayMs;
     const installDelayMs =
-      typeof pendingUpdateIdOrDelayMs === "number" ? pendingUpdateIdOrDelayMs : delayMs;
+      typeof targetOrDelayMs === "number" ? targetOrDelayMs : delayMs;
     if (Updater._reloadInFlight) return;
     if (Updater._installTimeout) return;
-    logger.info("Scheduling update install", { delayMs: installDelayMs, pendingUpdateId });
+    logger.info("Scheduling update install", { delayMs: installDelayMs, pendingTarget });
     Updater._installTimeout = setTimeout(() => {
       Updater._installTimeout = null;
-      void Updater.installUpdate(pendingUpdateId);
+      void Updater.installUpdate(pendingTarget);
     }, installDelayMs);
   },
 
@@ -376,8 +387,10 @@ export const Updater = {
     return true;
   },
 
-  async installUpdate(pendingUpdateId?: string | null) {
-    const resolvedPendingUpdateId = Updater._resolvePendingInstallUpdateId(pendingUpdateId);
+  async installUpdate(pendingTarget?: UpdateInstallTarget) {
+    const resolvedTarget = Updater._resolvePendingInstallTarget(pendingTarget);
+
+    if (isEmbeddedRollback(resolvedTarget) && Updates.isEmbeddedLaunch) return;
 
     // Synchronous re-entrancy guard: set before any await so a second call
     // (e.g. a re-scheduled timeout) bails out immediately.
@@ -387,19 +400,22 @@ export const Updater = {
     // Wait for persisted loop state to be read so we don't act on a stale decision.
     if (Updater._installCircuitReady) await Updater._installCircuitReady;
 
-    if (Updater._isInstallSuppressed(resolvedPendingUpdateId)) {
+    if (Updater._isInstallSuppressed(resolvedTarget)) {
       logger.warn("Skipping auto-install: install-loop circuit is open", {
-        pendingUpdateId: resolvedPendingUpdateId,
+        pendingTarget: resolvedTarget,
       });
       Updater._reloadInFlight = false;
       return;
     }
-    // On a recovery launch, only auto-install a known different update id. That
-    // lets a fix-forward OTA apply without reloading straight back into the same
-    // failed update.
-    if (Updates.isEmergencyLaunch && !Updater._isKnownFixForwardUpdate(resolvedPendingUpdateId)) {
+    // On a recovery launch, allow an explicit embedded rollback or a known
+    // different update id, keeping unknown targets and the failed OTA blocked.
+    if (
+      Updates.isEmergencyLaunch &&
+      !isEmbeddedRollback(resolvedTarget) &&
+      !Updater._isKnownFixForwardUpdate(resolvedTarget)
+    ) {
       logger.warn("Skipping auto-install on emergency/recovery launch", {
-        pendingUpdateId: resolvedPendingUpdateId,
+        pendingTarget: resolvedTarget,
         suppressedUpdateId: Updater._suppressedUpdateId,
       });
       Updater._reloadInFlight = false;
@@ -432,17 +448,20 @@ export const Updater = {
 
     // Persist the attempt BEFORE reloading — reloadAsync tears down the JS
     // runtime, so a fire-and-forget write could be lost mid-flight.
-    await Updater._recordInstallAttempt(resolvedPendingUpdateId);
+    const isRollback = isEmbeddedRollback(resolvedTarget);
+    const attemptedUpdateId = typeof resolvedTarget === "string" ? resolvedTarget : null;
+    // An intentional return to embedded is not a failed OTA install attempt.
+    if (!isRollback) await Updater._recordInstallAttempt(attemptedUpdateId);
 
     if (Updater.shouldDeferUpdate()) {
       logger.info("Deferring update install");
-      await Updater._undoInstallAttempt(resolvedPendingUpdateId);
+      if (!isRollback) await Updater._undoInstallAttempt(attemptedUpdateId);
       Updater._reloadInFlight = false;
       return;
     }
     if (!Updater._appReady) {
       logger.info("Deferring update install until app is ready");
-      await Updater._undoInstallAttempt(resolvedPendingUpdateId);
+      if (!isRollback) await Updater._undoInstallAttempt(attemptedUpdateId);
       Updater._reloadInFlight = false;
       return;
     }
@@ -450,12 +469,12 @@ export const Updater = {
       logger.info("Deferring update install until app is active", {
         appState: AppState.currentState,
       });
-      await Updater._undoInstallAttempt(resolvedPendingUpdateId);
+      if (!isRollback) await Updater._undoInstallAttempt(attemptedUpdateId);
       Updater._reloadInFlight = false;
       return;
     }
 
-    logger.info("Installing update", { pendingUpdateId: resolvedPendingUpdateId });
+    logger.info("Installing update", { pendingTarget: resolvedTarget });
     try {
       await Updates.reloadAsync();
       // reloadAsync resolves immediately before the reload is dispatched; no
@@ -464,34 +483,39 @@ export const Updater = {
       Updater._reloadInFlight = false;
       Updater._reloadFailures++;
       // The reload didn't happen, so don't let it inflate the loop counter.
-      await Updater._undoInstallAttempt(resolvedPendingUpdateId);
+      if (!isRollback) await Updater._undoInstallAttempt(attemptedUpdateId);
       logger.error("Failed to install update", err);
     }
   },
 
   _canAutoInstallPendingUpdate(
-    pendingUpdateId: string | null,
+    pendingTarget: UpdateInstallTarget,
     ignoreDeferral = false,
     ignoreStartupProcedure = false,
   ): boolean {
-    const resolvedPendingUpdateId = Updater._resolvePendingInstallUpdateId(pendingUpdateId);
+    const resolvedTarget = Updater._resolvePendingInstallTarget(pendingTarget);
+    if (isEmbeddedRollback(resolvedTarget) && Updates.isEmbeddedLaunch) return false;
     if (!Updater._appReady) return false;
     if (AppState.currentState !== "active") return false;
     if (Updater._reloadInFlight) return false;
     if (Updater._reloadFailures >= INSTALL_LOOP_MAX) return false;
     if (!ignoreDeferral && Updater.shouldDeferUpdate()) return false;
     if (!ignoreStartupProcedure && Updater._isStartupProcedureRunning) return false;
-    if (Updater._isInstallSuppressed(resolvedPendingUpdateId)) return false;
-    if (Updates.isEmergencyLaunch && !Updater._isKnownFixForwardUpdate(resolvedPendingUpdateId)) {
+    if (Updater._isInstallSuppressed(resolvedTarget)) return false;
+    if (
+      Updates.isEmergencyLaunch &&
+      !isEmbeddedRollback(resolvedTarget) &&
+      !Updater._isKnownFixForwardUpdate(resolvedTarget)
+    ) {
       return false;
     }
     return true;
   },
 
   _trySchedulePendingInstall() {
-    if (Updater._pendingInstallUpdateId === undefined) return;
-    if (!Updater._canAutoInstallPendingUpdate(Updater._pendingInstallUpdateId)) return;
-    Updater.scheduleInstallUpdate(Updater._pendingInstallUpdateId);
+    if (Updater._pendingInstallTarget === undefined) return;
+    if (!Updater._canAutoInstallPendingUpdate(Updater._pendingInstallTarget)) return;
+    Updater.scheduleInstallUpdate(Updater._pendingInstallTarget);
   },
 
   _startInstallDeferralAutorun() {
@@ -509,33 +533,33 @@ export const Updater = {
     });
   },
 
-  _resolvePendingInstallUpdateId(pendingUpdateId: string | null | undefined): string | null {
-    if (pendingUpdateId !== undefined) return pendingUpdateId;
-    if (Updater._pendingInstallUpdateId !== undefined && Updater._pendingInstallUpdateId !== null) {
-      return Updater._pendingInstallUpdateId;
+  _resolvePendingInstallTarget(pendingTarget: UpdateInstallTarget | undefined): UpdateInstallTarget {
+    if (pendingTarget !== undefined) return pendingTarget;
+    if (Updater._pendingInstallTarget !== undefined && Updater._pendingInstallTarget !== null) {
+      return Updater._pendingInstallTarget;
     }
-    if (Updater._lastDownloadedUpdateId !== undefined) return Updater._lastDownloadedUpdateId;
-    if (Updater._pendingInstallUpdateId !== undefined) return Updater._pendingInstallUpdateId;
+    if (Updater._lastDownloadedInstallTarget !== undefined) return Updater._lastDownloadedInstallTarget;
+    if (Updater._pendingInstallTarget !== undefined) return Updater._pendingInstallTarget;
     return null;
   },
 
-  _isKnownFixForwardUpdate(pendingUpdateId: string | null): boolean {
+  _isKnownFixForwardUpdate(pendingTarget: UpdateInstallTarget): boolean {
     const failedUpdateId = Updater._lastFailedUpdateId ?? Updater._suppressedUpdateId;
-    if (pendingUpdateId === null) return false;
-    return failedUpdateId !== null && pendingUpdateId !== failedUpdateId;
+    if (typeof pendingTarget !== "string") return false;
+    return failedUpdateId !== null && pendingTarget !== failedUpdateId;
   },
 
-  /** True when `pendingUpdateId` is the update the circuit is suppressing (or the
+  /** True when `pendingTarget` is the update the circuit is suppressing (or the
    *  pending id is unknown while a suppression is active). A different update id
    *  — e.g. a newly published fix-forward — is allowed through. */
-  _isInstallSuppressed(pendingUpdateId: string | null): boolean {
-    if (!Updater._circuitOpen) return false;
+  _isInstallSuppressed(pendingTarget: UpdateInstallTarget): boolean {
+    if (isEmbeddedRollback(pendingTarget) || !Updater._circuitOpen) return false;
     // Circuit open: block the looping id — or everything if the looping id or the
     // pending id is unknown. A different, known id (e.g. a fix-forward) passes.
     return (
       Updater._suppressedUpdateId === null ||
-      pendingUpdateId === null ||
-      pendingUpdateId === Updater._suppressedUpdateId
+      pendingTarget === null ||
+      pendingTarget === Updater._suppressedUpdateId
     );
   },
 
