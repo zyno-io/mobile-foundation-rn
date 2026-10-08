@@ -30,11 +30,13 @@ describe('AppStorage round-trip integration', () => {
     it('set → persist → reload preserves values', async () => {
         // Create first instance, set values
         const storage1 = createAppStorage<TestStorage>({});
+        await storage1.$load();
         storage1.token = 'my-token';
         storage1.settings = { theme: 'dark' };
 
         // Flush debounce
         jest.advanceTimersByTime(300);
+        await Promise.resolve();
 
         // Verify it was saved
         expect(AsyncStorage.setItem).toHaveBeenCalled();

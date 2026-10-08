@@ -47,6 +47,60 @@ describe('AppStorage', () => {
     });
 
     describe('$load', () => {
+        it('propagates denied reads and retries rather than caching default state', async () => {
+            const error = new Error('Failed to read storage file.');
+            (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(error)
+                .mockResolvedValueOnce(JSON.stringify({ token: 'saved' }));
+            const storage = createAppStorage<TestStorage>({ token: 'default' });
+            await expect(storage.$load()).rejects.toBe(error);
+            storage.$persist();
+            jest.advanceTimersByTime(300);
+            expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+            await storage.$load();
+            expect(storage.token).toBe('saved');
+            expect(AsyncStorage.getItem).toHaveBeenCalledTimes(2);
+        });
+
+        it('waits for host recovery before hydrating and preserves pending explicit changes', async () => {
+            let unlock!: (value: boolean) => void;
+            const recover = jest.fn(() => new Promise<boolean>(resolve => { unlock = resolve; }));
+            require('../../src/config').configureFoundation(createMockConfig({ recoverProtectedData: recover }));
+            (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('permission denied'))
+                .mockResolvedValueOnce(JSON.stringify({ token: 'saved', count: 7 }));
+            const storage = createAppStorage<TestStorage>({});
+            const loading = storage.$load();
+            await Promise.resolve();
+            await Promise.resolve();
+            storage.count = 8;
+            jest.advanceTimersByTime(300);
+            expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+            unlock(true);
+            await loading;
+            expect(storage.token).toBe('saved');
+            expect(storage.count).toBe(8);
+            jest.advanceTimersByTime(300);
+            await Promise.resolve();
+            expect(JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1])).toEqual({ token: 'saved', count: 8 });
+        });
+
+        it('does not write a session merely because it hydrated', async () => {
+            (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(JSON.stringify({ token: 'saved' }));
+            const storage = createAppStorage<TestStorage>({});
+            await storage.$load();
+            jest.advanceTimersByTime(300);
+            await Promise.resolve();
+            expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+        });
+
+        it('does not treat invalid JSON as an empty session', async () => {
+            (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce('{bad');
+            const storage = createAppStorage<TestStorage>({});
+            await expect(storage.$load()).rejects.toBeInstanceOf(SyntaxError);
+            storage.$persist();
+            jest.advanceTimersByTime(300);
+            expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+        });
+
         it('populates from AsyncStorage', async () => {
             (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(
                 JSON.stringify({ token: 'loaded', count: 42 }),
@@ -80,11 +134,13 @@ describe('AppStorage', () => {
     });
 
     describe('$persist', () => {
-        it('saves to AsyncStorage (debounced)', () => {
+        it('saves to AsyncStorage (debounced)', async () => {
             const storage = createAppStorage<TestStorage>({ token: 'test' });
+            await storage.$load();
             storage.$persist();
 
             jest.advanceTimersByTime(300);
+            await Promise.resolve();
 
             expect(AsyncStorage.setItem).toHaveBeenCalledWith(
                 'test:session',
@@ -94,11 +150,13 @@ describe('AppStorage', () => {
     });
 
     describe('auto-persist on set', () => {
-        it('persists automatically when a property is set', () => {
+        it('persists automatically when a property is set', async () => {
             const storage = createAppStorage<TestStorage>({});
+            await storage.$load();
             storage.token = 'auto-saved';
 
             jest.advanceTimersByTime(300);
+            await Promise.resolve();
 
             expect(AsyncStorage.setItem).toHaveBeenCalled();
             const savedData = JSON.parse(
@@ -117,11 +175,13 @@ describe('AppStorage', () => {
             expect(storage.count).toBeUndefined();
         });
 
-        it('persists the cleared state', () => {
+        it('persists the cleared state', async () => {
             const storage = createAppStorage<TestStorage>({ token: 'hello' });
+            await storage.$load();
             storage.$clear();
 
             jest.advanceTimersByTime(300);
+            await Promise.resolve();
 
             expect(AsyncStorage.setItem).toHaveBeenCalled();
         });

@@ -83,6 +83,27 @@ describe('Updater', () => {
         });
     });
 
+    describe('protected background startup', () => {
+        it('skips OTA APIs when initialization disabled updates', async () => {
+            const { Updater, Updates } = setup();
+            Object.defineProperty(Updates, 'isEnabled', { value: false, configurable: true });
+            expect(await Updater.downloadUpdate()).toBe(false);
+            await Updater.installUpdate();
+            await Updater._startHeadersSync();
+            expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+            expect(Updates.fetchUpdateAsync).not.toHaveBeenCalled();
+            expect(Updates.reloadAsync).not.toHaveBeenCalled();
+            expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
+        });
+
+        it('skips a direct update request during a background cold start', async () => {
+            const { Updater, Updates } = setup();
+            require('react-native').AppState.currentState = 'background';
+            expect(await Updater.downloadUpdate()).toBe(false);
+            expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+        });
+    });
+
     describe('OTA deferral', () => {
         it('shouldDeferUpdate is false with no listener', () => {
             const { Updater } = setup();

@@ -4,6 +4,8 @@ import { makeAutoObservable, makeObservable, observable, runInAction } from 'mob
 
 import { memoizeAsync } from '../helpers/memoize';
 import { getFoundationConfig } from '../config';
+import { withProtectedDataRecovery } from '../helpers/protectedData';
+import { createLogger } from './Logger';
 
 export interface AppStorageMethods {
     $load(): Promise<void>;
@@ -47,10 +49,21 @@ export function createAppStorage<T extends Record<string, any>>(defaults: Partia
         return `${env}:session`;
     };
 
+    let hydrated = false;
+    let persistenceRequested = false;
+    let clearRequested = false;
+    const changedKeys = new Set<string | symbol>();
+    let writeQueue = Promise.resolve();
+
     const persist = debounce(
         () => {
-            const persisted = pick(target, Object.keys(target));
-            AsyncStorage.setItem(getAsyncStorageKey(), JSON.stringify(persisted));
+            persistenceRequested = true;
+            if (!hydrated) return;
+            writeQueue = writeQueue.then(async () => {
+                await withProtectedDataRecovery(() =>
+                    AsyncStorage.setItem(getAsyncStorageKey(), JSON.stringify(pick(target, Object.keys(target))))
+                );
+            }).catch(error => createLogger('AppStorage').error('Failed to persist stored configuration', error));
         },
         250,
         { trailing: true }
@@ -58,21 +71,30 @@ export function createAppStorage<T extends Record<string, any>>(defaults: Partia
 
     const methods: Record<string, Function> = {
         $load: memoizeAsync(async () => {
-            try {
-                const data = await AsyncStorage.getItem(getAsyncStorageKey());
-                if (!data) {
-                    throw new Error('no data stored');
-                }
+            const data = await withProtectedDataRecovery(() => AsyncStorage.getItem(getAsyncStorageKey()));
+            if (data !== null) {
                 const loaded = JSON.parse(data);
-                Object.assign(proxy, loaded);
-            } catch {
-                // we expect a throw if there was no session
+                if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) {
+                    throw new Error('Stored configuration must be an object');
+                }
+                if (!clearRequested) {
+                    // Hydration must not schedule a write or overwrite explicit changes
+                    // made while the protected read was pending.
+                    for (const [key, value] of Object.entries(loaded)) {
+                        if (changedKeys.has(key)) continue;
+                        if (!(key in target)) createProp(target, key, value);
+                        else runInAction(() => { (target as Record<string, unknown>)[key] = value; });
+                    }
+                }
             }
+            hydrated = true;
+            if (persistenceRequested || changedKeys.size || clearRequested) persist();
         }),
 
         $persist: () => persist(),
 
         $clear: () => {
+            clearRequested = true;
             for (const key of Object.keys(target)) {
                 runInAction(() => {
                     (target as Record<string, unknown>)[key] = undefined;
@@ -94,6 +116,7 @@ export function createAppStorage<T extends Record<string, any>>(defaults: Partia
         },
 
         set(obj, prop, value) {
+            changedKeys.add(prop);
             if (!(prop in obj)) {
                 createProp(target, prop, value);
             }

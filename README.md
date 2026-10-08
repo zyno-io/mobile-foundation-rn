@@ -244,7 +244,9 @@ export const AppStorage = createAppStorage<IAppStorage>({});
 ```
 
 AppStorage is a MobX observable proxy with three special methods:
-- `$load()` — Loads persisted state from AsyncStorage (called automatically by `useSetupFoundation`)
+- `$load()` — Loads persisted state from AsyncStorage (called automatically by `useSetupFoundation`). Missing data uses defaults; read/parse failures reject and are retryable. Persistence waits for successful hydration and hydration itself does not write the session.
+- `configureFoundation({ recoverProtectedData })` — Optional host callback for denied protected-data operations. Wait for native availability and return `true` to retry once; return `false` for unrelated errors or when protected data was already available. Working after-first-unlock reads are attempted normally while locked. Older consumers without this callback retain the startup failure for retry on the next foreground transition.
+- OTA checks, install-circuit reads and native update-log forwarding start after foundation readiness and foreground activation. OTA operations are skipped when `expo-updates` is disabled; store-update status remains independent.
 - `$persist()` — Manually triggers a persist
 - `$clear()` — Clears all values and persists
 

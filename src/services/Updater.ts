@@ -180,6 +180,7 @@ export const Updater = {
       logger.info("Runtime info", {
         createdAt: Updates.createdAt,
         isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+        isEnabled: Updates.isEnabled,
         isEmergencyLaunch: Updates.isEmergencyLaunch,
         emergencyLaunchReason: Updates.emergencyLaunchReason,
         launchDuration: Updates.launchDuration,
@@ -191,31 +192,42 @@ export const Updater = {
       // builds (incl. dev / E2E), so it runs before the dev gate. It self-skips when
       // MUS config is absent.
       Updater.loadNativeStatus();
-
-      if (AppMeta.isDevelopment) return;
-
-      // Decide up front whether we're stuck in an install/downgrade loop.
-      // installUpdate awaits this before acting on the suppression decision.
-      Updater._installCircuitReady = Updater._evaluateInstallCircuit();
-      Updater._startInstallDeferralAutorun();
-
-      // Ship expo-updates' native log so the previous launch's failure
-      // chain (the error that rolled us back to the embedded bundle) is
-      // captured — it never reaches the JS logger otherwise.
-      void Updater._logNativeUpdateLog();
-
-      // Device-targeted OTA request headers (OTA-only -> after the dev gate). Register
-      // before the first check so AppMeta.load() applies headers first.
-      Updater._startHeadersSync();
-
-      AppMeta.load()
-        .then(() => Updater._startHeadersSync())
-        .then(() => {
-          Updater.scheduleForegroundUpdateCheck();
-        });
     }, []);
 
-    if (!AppMeta.isDevelopment) {
+    useEffect(() => {
+      if (AppMeta.isDevelopment || !appReady || !Updates.isEnabled) return;
+      let started = false;
+      const start = () => {
+        if (started || AppState.currentState !== "active") return;
+        started = true;
+        // Decide up front whether we're stuck in an install/downgrade loop.
+        // installUpdate awaits this before acting on the suppression decision.
+        Updater._installCircuitReady = Updater._evaluateInstallCircuit();
+        Updater._startInstallDeferralAutorun();
+
+        // Ship expo-updates' native log so the previous launch's failure
+        // chain (the error that rolled us back to the embedded bundle) is
+        // captured — it never reaches the JS logger otherwise.
+        void Updater._logNativeUpdateLog();
+
+        // Device-targeted OTA request headers (OTA-only -> after the dev gate). Register
+        // before the first check so AppMeta.load() applies headers first.
+        Updater._startHeadersSync();
+
+        AppMeta.load()
+          .then(() => Updater._startHeadersSync())
+          .then(() => {
+            Updater.scheduleForegroundUpdateCheck();
+          }).catch(error => logger.error("Failed to initialize update checks", error));
+      };
+      const subscription = AppState.addEventListener("change", state => {
+        if (state === "active") start();
+      });
+      start();
+      return () => subscription.remove();
+    }, [appReady]);
+
+    if (!AppMeta.isDevelopment && Updates.isEnabled) {
       useAppStateEffect((state) => {
         if (state === "active") {
           Updater.scheduleForegroundUpdateCheck();
@@ -332,6 +344,7 @@ export const Updater = {
   },
 
   async _downloadUpdate() {
+    if (!Updates.isEnabled || !Updater._appReady || AppState.currentState !== "active") return false;
     if (Updater.shouldDeferUpdate()) {
       logger.info("Skipping update check (deferred)");
       return false;
@@ -388,6 +401,7 @@ export const Updater = {
   },
 
   async installUpdate(pendingTarget?: UpdateInstallTarget) {
+    if (!Updates.isEnabled) return;
     const resolvedTarget = Updater._resolvePendingInstallTarget(pendingTarget);
 
     if (isEmbeddedRollback(resolvedTarget) && Updates.isEmbeddedLaunch) return;
@@ -779,7 +793,7 @@ export const Updater = {
   // ===================================================================
 
   _startHeadersSync(): Promise<void> {
-    if (AppMeta.isDevelopment) return Promise.resolve();
+    if (AppMeta.isDevelopment || !Updates.isEnabled) return Promise.resolve();
     if (_headersSyncPromise) return _headersSyncPromise;
     if (!getFoundationConfig().env.MUS_CHANNEL) return Promise.resolve();
     if (!Updates.isEmbeddedLaunch || Updates.isEmergencyLaunch) {
