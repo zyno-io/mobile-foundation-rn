@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 
 import { memoizeAsync } from '../helpers/memoize';
+import { withProtectedDataRecovery } from '../helpers/protectedData';
 import { getFoundationConfig } from '../config';
 
 let _appVersionExtended: string | null = null;
@@ -38,7 +39,7 @@ export class AppMeta {
     static readonly launchTs = Date.now();
     static activateCount = 0;
 
-    static readonly load = memoizeAsync(async () => {
+    static readonly load = memoizeAsync(() => withProtectedDataRecovery(async () => {
         await DeviceInfo.syncUniqueId();
 
         const config = getFoundationConfig();
@@ -51,5 +52,5 @@ export class AppMeta {
             deviceId,
             deviceIdEnv
         });
-    });
+    }));
 }

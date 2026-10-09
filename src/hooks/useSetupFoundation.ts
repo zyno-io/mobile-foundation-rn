@@ -2,7 +2,6 @@ import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useMemo, useState } from "react";
 import { AppState } from "react-native";
-import { withProtectedDataRecovery } from "../helpers/protectedData";
 import { createLogger } from "../services/Logger";
 
 import { getFoundationConfig } from "../config";
@@ -42,7 +41,7 @@ export function useSetupFoundation(appIsReady?: () => boolean): boolean {
       try {
         // A queued activation must retry both reads after their failed memoized
         // promises have cleared, rather than reusing a second still-pending read.
-        const results = await Promise.allSettled([withProtectedDataRecovery(() => AppMeta.load()), getAppStorage().$load()]);
+        const results = await Promise.allSettled([AppMeta.load(), getAppStorage().$load()]);
         for (const result of results) {
           if (result.status === "rejected") throw result.reason;
         }
