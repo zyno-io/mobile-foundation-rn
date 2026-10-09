@@ -22,15 +22,15 @@ private enum ExpoUpdatesDatabaseDiagnostics {
 
   static func collect() -> [String: Any] {
     let fileManager = FileManager.default
-    guard let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+    guard let applicationSupportDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
       return [
         "ok": false,
         "databaseFilename": databaseFilename,
-        "error": "Application documents directory is unavailable"
+        "error": "Application support directory is unavailable"
       ]
     }
 
-    let updatesDirectory = documentsDirectory.appendingPathComponent(".expo-internal", isDirectory: true)
+    let updatesDirectory = applicationSupportDirectory.appendingPathComponent(".expo-internal", isDirectory: true)
     let databaseURL = updatesDirectory.appendingPathComponent(databaseFilename)
     var result: [String: Any] = [
       "ok": false,

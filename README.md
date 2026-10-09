@@ -286,9 +286,10 @@ export default RootLayout;
 ```
 
 `useSetupFoundation()` keeps the app unready if storage or metadata fails to
-load, and retries when the app next becomes active. Apps that need to resume a
-denied iOS read as soon as protected data is available can provide the optional
-[`recoverProtectedData` callback](#protected-data-recovery).
+load, and retries when the app next becomes active. Foundation automatically
+recovers likely iOS protected-data failures, including metadata reads started
+by Sentry, logging and API requests before the setup hook mounts. See
+[protected data recovery](#protected-data-recovery) for the optional strict policy.
 
 OTA checks and update-related storage reads start once foundation is ready and
 the app is active. If `expo-updates` is disabled, the updater skips OTA
@@ -308,7 +309,7 @@ configured.
 | `statusBar` | `{ barStyle, backgroundColorKey? }` | No | Status bar styling |
 | `splashScreen` | `'auto' \| 'manual'` | No | Splash screen hide behavior (default: `'auto'`) |
 | `updaterTimeout` | `number` | No | Max ms for each startup/checking phase; downloading uses 10 seconds and installation has no timeout |
-| `recoverProtectedData` | `(error: unknown) => Promise<boolean>` | No | Wait for protected data before retrying a failed storage or metadata operation. See [protected data recovery](#protected-data-recovery). |
+| `requireProtectedDataAvailability` | `boolean` | No | On iOS, wait before managed storage and metadata operations. Default `false` attempts reads immediately and recovers denied access. See [protected data recovery](#protected-data-recovery). |
 | `deepLinkHandler` | `(url: string) => void` | No | Handler for queued launch URLs and subsequent deep-link events |
 | `supportContact` | `string` | No | Contact info shown in error dialogs |
 | `userErrorClasses` | `ErrorClass[]` | No | Error classes whose messages are shown to users |
@@ -316,39 +317,41 @@ configured.
 
 ### Protected data recovery
 
-An iOS background launch can encounter storage or keychain data that is
-temporarily unavailable. Foundation calls `recoverProtectedData(error)` when
-an AsyncStorage read/write or device-metadata load fails. It always attempts the
-operation first, including during background launches. Metadata loads started
-by Sentry, logging and API requests use the same recovery before the setup hook
-mounts.
+Foundation handles iOS storage and keychain availability automatically. By
+default, it attempts the operation first. If access fails with a likely
+protected-data error, it waits for native availability and retries once.
+Unrelated errors and a failed retry propagate to the caller.
 
-Implement the callback in your app and pass it as `recoverProtectedData` in your
-existing `configureFoundation()` call. This example uses two app-owned helpers
-to recognize the error and wait for native data availability:
+Apps that can wait for unlock may add `requireProtectedDataAvailability: true`
+to their `configureFoundation()` options. This waits before each managed
+storage or metadata operation, even if it could succeed while locked. It
+requires a new iOS binary containing Foundation's native availability module.
+The option applies to Foundation's operations and the shared wrapper below;
+it has no effect on Android.
+
+Use the shared wrapper for your app's own protected operations:
 
 ```typescript
-import { isProtectedDataError, waitForProtectedData } from './native/protectedData';
+import { withProtectedDataRecovery } from '@zyno-io/mobile-foundation-rn';
+import * as Keychain from 'react-native-keychain';
 
-export async function recoverProtectedData(error: unknown): Promise<boolean> {
-    if (!isProtectedDataError(error)) return false;
-
-    await waitForProtectedData();
-    return true;
-}
+const credentials = await withProtectedDataRecovery(() =>
+    Keychain.getGenericPassword({ service: 'my-app-auth' })
+);
 ```
 
-- Return `false` for errors unrelated to protected data. Foundation propagates the original error.
-- For a protected-data error, wait until the required data is accessible, then return `true`. Foundation retries the operation once; a second failure propagates.
-- The wait helper should resolve immediately if the data is already accessible. Return `true` in that case too, so the failed operation still gets its retry.
+An optional second argument, `{ signal: controller.signal }`, cancels this
+caller's wait. An operation that already started may still finish.
 
-These helpers and their native bridge belong to your app. Foundation does not
-change file protection or keychain accessibility. Data protected until the
-first unlock can remain accessible while the phone is locked, so the callback
-should respond to a failed operation rather than delaying every locked launch.
+Data protected until the first unlock can remain accessible while the phone is
+locked. Apps that need background work, such as lock-screen calls, should keep
+the default policy and choose appropriate file/keychain protection. The app
+also owns native startup ordering: Expo initializes before JavaScript, so its
+database needs a native startup gate if it may be unreadable.
 
-If you omit this callback, the setup hook retries failed startup reads when the
-app next becomes active.
+Older iOS binaries without the availability module use foreground activation
+as a fallback signal for one retry. Strict mode reports a missing-capability
+error on those binaries instead of treating foreground as proof of availability.
 
 ### Component defaults (`config.defaults`)
 

@@ -1,6 +1,6 @@
 {
     "platforms": ["apple"],
     "apple": {
-        "modules": ["MobileFoundationDiagnosticsModule"]
+        "modules": ["MobileFoundationDiagnosticsModule", "MobileFoundationProtectedDataModule"]
     }
 }

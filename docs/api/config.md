@@ -15,6 +15,7 @@ import type { FoundationConfig, ColorScheme, CreateColorScheme } from '@zyno-io/
 | `FoundationConfig` | type | Configuration interface |
 | `ColorScheme` | type | Color scheme key-value map |
 | `CreateColorScheme<T>` | type | Helper to extend ColorScheme with custom key names (T is a string union) |
+| `withProtectedDataRecovery` | `(operation, { signal? }?) => Promise<T>` | Apply the configured iOS availability policy and retry a denied operation once |
 
 ::: info
 `getFoundationConfig()` is available as an internal import from `./config` but is not re-exported from the library's public API.

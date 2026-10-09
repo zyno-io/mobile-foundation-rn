@@ -1,4 +1,5 @@
 import { createMockConfig } from '../test-utils';
+import { mockProtectedDataNative } from '../helpers/protectedDataMock';
 
 describe('Sentry metadata initialization', () => {
     beforeEach(() => {
@@ -22,15 +23,14 @@ describe('Sentry metadata initialization', () => {
 
     it('sets identity after an early denied read recovers', async () => {
         const error = new Error('User interaction is not allowed.');
-        const recover = jest.fn().mockResolvedValue(true);
-        require('../../src/config').getFoundationConfig().recoverProtectedData = recover;
+        const native = mockProtectedDataNative();
         require('react-native-device-info').default.syncUniqueId.mockRejectedValueOnce(error);
         const Sentry = require('@sentry/react-native');
 
         require('../../src/services/Sentry').SentryHelper.init();
         await new Promise(resolve => setTimeout(resolve, 0));
 
-        expect(recover).toHaveBeenCalledWith(error);
+        expect(native.waitForAvailabilityAsync).toHaveBeenCalledTimes(1);
         expect(Sentry.setUser).toHaveBeenCalledWith({ id: 'unique-id-123-test' });
         expect(Sentry.captureException).not.toHaveBeenCalled();
     });

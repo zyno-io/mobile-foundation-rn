@@ -153,6 +153,42 @@ describe('Updater', () => {
         });
     });
 
+    describe('automatic store-update status', () => {
+        it('waits for ready foreground startup even with OTA disabled', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                const React = require('react');
+                const { render, act } = require('@testing-library/react-native/pure');
+                const { AppState } = require('react-native');
+                Object.defineProperty(Updates, 'isEnabled', { value: false, configurable: true });
+                AppState.currentState = 'background';
+                const listeners: ((state: string) => void)[] = [];
+                AppState.addEventListener.mockImplementation((_event: string, listener: (state: string) => void) => {
+                    listeners.push(listener);
+                    return { remove: jest.fn() };
+                });
+                const emit = (state: string) => { AppState.currentState = state; listeners.forEach(listener => listener(state)); };
+                const load = jest.spyOn(Updater, 'loadNativeStatus').mockResolvedValue(undefined);
+                function Harness({ ready }: { ready: boolean }) {
+                    Updater._useHook(ready);
+                    return null;
+                }
+                const view = render(React.createElement(Harness, { ready: false }));
+                view.rerender(React.createElement(Harness, { ready: true }));
+                expect(load).not.toHaveBeenCalled();
+                act(() => emit('active'));
+                expect(load).toHaveBeenCalledTimes(1);
+                act(() => emit('background'));
+                act(() => emit('active'));
+                expect(load).toHaveBeenCalledTimes(1);
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+    });
+
     describe('OTA status timeouts', () => {
         it('uses the downloading phase while Expo startup is still running', () => {
             jest.useFakeTimers();

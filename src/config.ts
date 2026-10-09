@@ -56,11 +56,11 @@ export interface FoundationConfig {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fonts?: Record<string, any>;
     updaterTimeout?: number;
-    /** On a protected-data access failure, wait for native availability and return
-     * true to retry once, including when unlock preceded the availability query.
-     * Return false for unrelated errors.
-     * Do not gate all background access: after-first-unlock data works while locked. */
-    recoverProtectedData?: (error: unknown) => Promise<boolean>;
+    /** iOS: wait for native protected-data availability before managed storage
+     * and metadata operations. Default false attempts working background reads
+     * immediately and recovers denied operations with one retry after availability.
+     * Requires the Foundation native availability module when enabled. */
+    requireProtectedDataAvailability?: boolean;
     statusBar?: {
         barStyle: StatusBarStyle | 'auto';
         backgroundColorKey?: string;

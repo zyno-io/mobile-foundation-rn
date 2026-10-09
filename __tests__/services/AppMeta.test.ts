@@ -1,4 +1,5 @@
 import { createMockConfig } from '../test-utils';
+import { flushProtectedData, mockProtectedDataNative } from '../helpers/protectedDataMock';
 
 describe('AppMeta', () => {
     let AppMeta: typeof import('../../src/services/AppMeta').AppMeta;
@@ -43,18 +44,16 @@ describe('AppMeta', () => {
     describe('load()', () => {
         it('recovers a denied early metadata read without mounting the setup hook', async () => {
             const error = new Error('User interaction is not allowed.');
-            let unlock!: (available: boolean) => void;
-            const recover = jest.fn(() => new Promise<boolean>(resolve => { unlock = resolve; }));
-            require('../../src/config').getFoundationConfig().recoverProtectedData = recover;
+            let unlock!: () => void;
+            const native = mockProtectedDataNative(jest.fn(() => new Promise<void>(resolve => { unlock = resolve; })));
             DeviceInfo.syncUniqueId.mockRejectedValueOnce(error);
 
             const loading = AppMeta.load();
-            await Promise.resolve();
-            await Promise.resolve();
-            expect(recover).toHaveBeenCalledWith(error);
+            await flushProtectedData();
+            expect(native.waitForAvailabilityAsync).toHaveBeenCalledTimes(1);
             expect(DeviceInfo.getUniqueId).not.toHaveBeenCalled();
 
-            unlock(true);
+            unlock();
             await loading;
             expect(DeviceInfo.syncUniqueId).toHaveBeenCalledTimes(2);
             expect(AppMeta.deviceId).toBe('unique-id-123');
@@ -62,17 +61,16 @@ describe('AppMeta', () => {
 
         it('bounds recovery and permits a fresh load after a persistent metadata failure', async () => {
             const error = new Error('User interaction is not allowed.');
-            const recover = jest.fn().mockResolvedValue(true);
-            require('../../src/config').getFoundationConfig().recoverProtectedData = recover;
+            const native = mockProtectedDataNative();
             DeviceInfo.getUniqueId.mockRejectedValueOnce(error).mockRejectedValueOnce(error);
 
             await expect(AppMeta.load()).rejects.toBe(error);
-            expect(recover).toHaveBeenCalledTimes(1);
+            expect(native.waitForAvailabilityAsync).toHaveBeenCalledTimes(1);
             expect(AppMeta.deviceId).toBe('');
 
             await AppMeta.load();
             expect(AppMeta.deviceId).toBe('unique-id-123');
-            expect(recover).toHaveBeenCalledTimes(1);
+            expect(native.waitForAvailabilityAsync).toHaveBeenCalledTimes(1);
         });
 
         it('calls syncUniqueId and getUniqueId', async () => {

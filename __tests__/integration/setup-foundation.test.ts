@@ -25,7 +25,7 @@ describe('useSetupFoundation lifecycle', () => {
     it('keeps failed hydration unready and retries it on foreground activation', async () => {
         const { useSetupFoundation, React, rtl } = setup();
         const storage = require('@react-native-async-storage/async-storage').default;
-        storage.getItem.mockRejectedValueOnce(new Error('Failed to read storage file.'))
+        storage.getItem.mockRejectedValueOnce(new Error('Storage I/O failure'))
             .mockResolvedValueOnce(JSON.stringify({ token: 'restored' }));
         const { AppState } = require('react-native');
         const states: boolean[] = [];
@@ -78,7 +78,7 @@ describe('useSetupFoundation lifecycle', () => {
         const view = rtl.render(React.createElement(TestComponent));
         await rtl.act(async () => {
             AppState.addEventListener.mock.calls.forEach((call: any[]) => call[1]('active'));
-            fail(new Error('Failed to read storage file.'));
+            fail(new Error('Storage I/O failure'));
             await new Promise(resolve => setTimeout(resolve, 0));
         });
         expect(states.at(-1)).toBe(true);
@@ -108,7 +108,7 @@ describe('useSetupFoundation lifecycle', () => {
             await new Promise(resolve => setTimeout(resolve, 0));
         });
         await rtl.act(async () => {
-            failStorage(new Error('Failed to read storage file.'));
+            failStorage(new Error('Storage I/O failure'));
             await new Promise(resolve => setTimeout(resolve, 0));
         });
         expect(states.at(-1)).toBe(true);

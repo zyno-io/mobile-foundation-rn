@@ -10,6 +10,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+bash ../scripts/test-protected-data-native.sh
+
 NO_BUILD=false
 RELEASE=false
 

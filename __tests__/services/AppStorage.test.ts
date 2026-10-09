@@ -1,6 +1,7 @@
 import { autorun } from 'mobx';
 
 import { createMockConfig } from '../test-utils';
+import { flushProtectedData, mockProtectedDataNative } from '../helpers/protectedDataMock';
 
 describe('AppStorage', () => {
     let createAppStorage: typeof import('../../src/services/AppStorage').createAppStorage;
@@ -50,6 +51,7 @@ describe('AppStorage', () => {
         it('propagates denied reads and retries rather than caching default state', async () => {
             const error = new Error('Failed to read storage file.');
             (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(error)
+                .mockRejectedValueOnce(error)
                 .mockResolvedValueOnce(JSON.stringify({ token: 'saved' }));
             const storage = createAppStorage<TestStorage>({ token: 'default' });
             await expect(storage.$load()).rejects.toBe(error);
@@ -58,23 +60,21 @@ describe('AppStorage', () => {
             expect(AsyncStorage.setItem).not.toHaveBeenCalled();
             await storage.$load();
             expect(storage.token).toBe('saved');
-            expect(AsyncStorage.getItem).toHaveBeenCalledTimes(2);
+            expect(AsyncStorage.getItem).toHaveBeenCalledTimes(3);
         });
 
-        it('waits for host recovery before hydrating and preserves pending explicit changes', async () => {
-            let unlock!: (value: boolean) => void;
-            const recover = jest.fn(() => new Promise<boolean>(resolve => { unlock = resolve; }));
-            require('../../src/config').configureFoundation(createMockConfig({ recoverProtectedData: recover }));
+        it('waits for native recovery before hydrating and preserves pending explicit changes', async () => {
+            let unlock!: () => void;
+            mockProtectedDataNative(jest.fn(() => new Promise<void>(resolve => { unlock = resolve; })));
             (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(new Error('permission denied'))
                 .mockResolvedValueOnce(JSON.stringify({ token: 'saved', count: 7 }));
             const storage = createAppStorage<TestStorage>({});
             const loading = storage.$load();
-            await Promise.resolve();
-            await Promise.resolve();
+            await flushProtectedData();
             storage.count = 8;
             jest.advanceTimersByTime(300);
             expect(AsyncStorage.setItem).not.toHaveBeenCalled();
-            unlock(true);
+            unlock();
             await loading;
             expect(storage.token).toBe('saved');
             expect(storage.count).toBe(8);
@@ -196,7 +196,7 @@ describe('AppStorage', () => {
     describe('$clear', () => {
         it('honors an explicit clear while loading corrupt data, but never writes after a denied read', async () => {
             const error = new Error('Failed to read storage file.');
-            (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(error).mockResolvedValueOnce('{bad');
+            (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(error).mockRejectedValueOnce(error).mockResolvedValueOnce('{bad');
             const storage = createAppStorage<TestStorage>({ token: 'default' });
             storage.$clear();
             await expect(storage.$load()).rejects.toBe(error);
