@@ -243,18 +243,24 @@ interface IAppStorage {
 export const AppStorage = createAppStorage<IAppStorage>({});
 ```
 
-AppStorage is a MobX observable proxy with three special methods:
-- `$load()` — Loads persisted state from AsyncStorage (called automatically by `useSetupFoundation`). Missing data uses defaults; read/parse failures reject and are retryable. Persistence waits for successful hydration and hydration itself does not write the session.
-- `configureFoundation({ recoverProtectedData })` — Optional host callback for denied protected-data operations. Wait for native availability and return `true` to retry once, including when unlock preceded the availability query; return `false` for unrelated errors. Working after-first-unlock reads are attempted normally while locked. Older consumers without this callback retain the startup failure for retry on the next foreground transition.
-  Recovery lives in the storage and metadata loaders, including metadata reads initiated by Sentry, logging and API requests before the setup hook mounts. Sentry handles persistent metadata rejection without setting an empty user ID or leaving an unhandled promise.
-- OTA checks, install-circuit reads and native update-log forwarding start after foundation readiness and foreground activation. OTA operations are skipped when `expo-updates` is disabled; store-update status remains independent.
-- `$persist()` — Manually triggers a persist
-- `$clear()` — Clears all values and persists
+AppStorage is a MobX observable proxy with three methods:
+
+- `$load()` — Reads saved values from AsyncStorage. `useSetupFoundation()` calls it automatically.
+- `$persist()` — Schedules a save of the current values.
+- `$clear()` — Clears the values in memory and schedules a save.
 
 Setting any property auto-persists with a 250ms debounce:
+
 ```typescript
 AppStorage.deviceToken = 'abc123'; // automatically saved
 ```
+
+Writes wait until `$load()` succeeds. Loading saved values does not trigger a
+save, and changes made while loading are preserved. If there is no saved data,
+the initial values passed to `createAppStorage()` are used.
+
+If reading or parsing saved data fails, `$load()` rejects. Calling it again
+retries the load. The failed load cannot overwrite saved data with defaults.
 
 ### 3. Set Up Your App Entry
 
@@ -279,6 +285,16 @@ function RootLayout() {
 export default RootLayout;
 ```
 
+`useSetupFoundation()` keeps the app unready if storage or metadata fails to
+load, and retries when the app next becomes active. Apps that need to resume a
+denied iOS read as soon as protected data is available can provide the optional
+[`recoverProtectedData` callback](#protected-data-recovery).
+
+OTA checks and update-related storage reads start once foundation is ready and
+the app is active. If `expo-updates` is disabled, the updater skips OTA
+operations. Checks for native App Store / Play Store updates still run when
+configured.
+
 ## Configuration Reference
 
 ### `configureFoundation(config)`
@@ -292,10 +308,47 @@ export default RootLayout;
 | `statusBar` | `{ barStyle, backgroundColorKey? }` | No | Status bar styling |
 | `splashScreen` | `'auto' \| 'manual'` | No | Splash screen hide behavior (default: `'auto'`) |
 | `updaterTimeout` | `number` | No | Max ms for each startup/checking phase; downloading uses 10 seconds and installation has no timeout |
+| `recoverProtectedData` | `(error: unknown) => Promise<boolean>` | No | Wait for protected data before retrying a failed storage or metadata operation. See [protected data recovery](#protected-data-recovery). |
 | `deepLinkHandler` | `(url: string) => void` | No | Handler for queued launch URLs and subsequent deep-link events |
 | `supportContact` | `string` | No | Contact info shown in error dialogs |
 | `userErrorClasses` | `ErrorClass[]` | No | Error classes whose messages are shown to users |
 | `defaults` | `FoundationDefaults` | No | Per-component style defaults (see below) |
+
+### Protected data recovery
+
+An iOS background launch can encounter storage or keychain data that is
+temporarily unavailable. Foundation calls `recoverProtectedData(error)` when
+an AsyncStorage read/write or device-metadata load fails. It always attempts the
+operation first, including during background launches. Metadata loads started
+by Sentry, logging and API requests use the same recovery before the setup hook
+mounts.
+
+Implement the callback in your app and pass it as `recoverProtectedData` in your
+existing `configureFoundation()` call. This example uses two app-owned helpers
+to recognize the error and wait for native data availability:
+
+```typescript
+import { isProtectedDataError, waitForProtectedData } from './native/protectedData';
+
+export async function recoverProtectedData(error: unknown): Promise<boolean> {
+    if (!isProtectedDataError(error)) return false;
+
+    await waitForProtectedData();
+    return true;
+}
+```
+
+- Return `false` for errors unrelated to protected data. Foundation propagates the original error.
+- For a protected-data error, wait until the required data is accessible, then return `true`. Foundation retries the operation once; a second failure propagates.
+- The wait helper should resolve immediately if the data is already accessible. Return `true` in that case too, so the failed operation still gets its retry.
+
+These helpers and their native bridge belong to your app. Foundation does not
+change file protection or keychain accessibility. Data protected until the
+first unlock can remain accessible while the phone is locked, so the callback
+should respond to a failed operation rather than delaying every locked launch.
+
+If you omit this callback, the setup hook retries failed startup reads when the
+app next becomes active.
 
 ### Component defaults (`config.defaults`)
 
