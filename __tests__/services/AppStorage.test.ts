@@ -92,6 +92,33 @@ describe('AppStorage', () => {
             expect(AsyncStorage.setItem).not.toHaveBeenCalled();
         });
 
+        it('preserves nested edits made while hydration was pending', async () => {
+            let read!: (value: string) => void;
+            (AsyncStorage.getItem as jest.Mock).mockImplementationOnce(() => new Promise(resolve => { read = resolve; }));
+            const storage = createAppStorage<{ settings: { muted: boolean }; token?: string }>({ settings: { muted: false } });
+            const loading = storage.$load();
+            storage.settings.muted = true;
+            storage.$persist();
+            jest.advanceTimersByTime(300);
+            expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+            read(JSON.stringify({ settings: { muted: false }, token: 'saved' }));
+            await loading;
+            expect(storage.settings.muted).toBe(true);
+            expect(storage.token).toBe('saved');
+            jest.advanceTimersByTime(300);
+            await Promise.resolve();
+            expect(JSON.parse((AsyncStorage.setItem as jest.Mock).mock.calls[0][1])).toEqual({ settings: { muted: true }, token: 'saved' });
+        });
+
+        it('hydrates unchanged nested defaults from saved state', async () => {
+            (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce(JSON.stringify({ settings: { muted: true } }));
+            const storage = createAppStorage<{ settings: { muted: boolean } }>({ settings: { muted: false } });
+            await storage.$load();
+            expect(storage.settings.muted).toBe(true);
+            jest.advanceTimersByTime(300);
+            expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+        });
+
         it('does not treat invalid JSON as an empty session', async () => {
             (AsyncStorage.getItem as jest.Mock).mockResolvedValueOnce('{bad');
             const storage = createAppStorage<TestStorage>({});
@@ -167,6 +194,36 @@ describe('AppStorage', () => {
     });
 
     describe('$clear', () => {
+        it('honors an explicit clear while loading corrupt data, but never writes after a denied read', async () => {
+            const error = new Error('Failed to read storage file.');
+            (AsyncStorage.getItem as jest.Mock).mockRejectedValueOnce(error).mockResolvedValueOnce('{bad');
+            const storage = createAppStorage<TestStorage>({ token: 'default' });
+            storage.$clear();
+            await expect(storage.$load()).rejects.toBe(error);
+            jest.advanceTimersByTime(300);
+            expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+            await storage.$load();
+            expect(storage.token).toBeUndefined();
+            jest.advanceTimersByTime(300);
+            await Promise.resolve();
+            expect(AsyncStorage.setItem).toHaveBeenCalledWith('test:session', '{}');
+        });
+
+        it('does not restore saved keys after clearing during a pending read', async () => {
+            let read!: (value: string) => void;
+            (AsyncStorage.getItem as jest.Mock).mockImplementationOnce(() => new Promise(resolve => { read = resolve; }));
+            const storage = createAppStorage<TestStorage>({ token: 'default' });
+            const loading = storage.$load();
+            storage.$clear();
+            read(JSON.stringify({ token: 'saved', count: 7 }));
+            await loading;
+            expect(storage.token).toBeUndefined();
+            expect(storage.count).toBeUndefined();
+            jest.advanceTimersByTime(300);
+            await Promise.resolve();
+            expect(AsyncStorage.setItem).toHaveBeenCalledWith('test:session', '{}');
+        });
+
         it('resets all properties to undefined', () => {
             const storage = createAppStorage<TestStorage>({ token: 'hello', count: 5 });
             storage.$clear();

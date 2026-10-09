@@ -33,17 +33,27 @@ export function useSetupFoundation(appIsReady?: () => boolean): boolean {
     let disposed = false;
     let loading = false;
     let loaded = false;
+    let retryRequested = false;
     const load = async () => {
-      if (disposed || loading || loaded) return;
+      if (disposed || loaded) return;
+      if (loading) { retryRequested = true; return; }
+      retryRequested = false;
       loading = true;
       try {
-        await Promise.all([withProtectedDataRecovery(() => AppMeta.load()), getAppStorage().$load()]);
+        // A queued activation must retry both reads after their failed memoized
+        // promises have cleared, rather than reusing a second still-pending read.
+        const results = await Promise.allSettled([withProtectedDataRecovery(() => AppMeta.load()), getAppStorage().$load()]);
+        for (const result of results) {
+          if (result.status === "rejected") throw result.reason;
+        }
         loaded = true;
         if (!disposed) setServicesLoaded(true);
       } catch (error) {
         if (!disposed) createLogger("Setup").error("Failed to load foundation services", error);
       } finally {
         loading = false;
+        // Coalesce an activation received while the denied read was in flight.
+        if (retryRequested && !disposed && !loaded) void load();
       }
     };
     const subscription = AppState.addEventListener("change", state => {

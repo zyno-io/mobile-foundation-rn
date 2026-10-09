@@ -57,7 +57,8 @@ export interface FoundationConfig {
     fonts?: Record<string, any>;
     updaterTimeout?: number;
     /** On a protected-data access failure, wait for native availability and return
-     * true to retry. Return false for unrelated errors or data already available.
+     * true to retry once, including when unlock preceded the availability query.
+     * Return false for unrelated errors.
      * Do not gate all background access: after-first-unlock data works while locked. */
     recoverProtectedData?: (error: unknown) => Promise<boolean>;
     statusBar?: {

@@ -66,6 +66,57 @@ describe('useSetupFoundation lifecycle', () => {
         view.unmount();
     });
 
+    it('retries when activation arrives before an in-flight hydration fails', async () => {
+        const { useSetupFoundation, React, rtl } = setup();
+        const storage = require('@react-native-async-storage/async-storage').default;
+        let fail!: (error: Error) => void;
+        storage.getItem.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }))
+            .mockResolvedValueOnce(JSON.stringify({ token: 'restored' }));
+        const { AppState } = require('react-native');
+        const states: boolean[] = [];
+        function TestComponent() { states.push(useSetupFoundation()); return null; }
+        const view = rtl.render(React.createElement(TestComponent));
+        await rtl.act(async () => {
+            AppState.addEventListener.mock.calls.forEach((call: any[]) => call[1]('active'));
+            fail(new Error('Failed to read storage file.'));
+            await new Promise(resolve => setTimeout(resolve, 0));
+        });
+        expect(states.at(-1)).toBe(true);
+        expect(storage.getItem).toHaveBeenCalledTimes(2);
+        view.unmount();
+    });
+
+    it('waits for both failed startup reads to settle before consuming a queued activation', async () => {
+        const { useSetupFoundation, React, rtl } = setup();
+        const storage = require('@react-native-async-storage/async-storage').default;
+        const { AppMeta } = require('../../src/services/AppMeta');
+        const { memoizeAsync } = require('../../src/helpers/memoize');
+        let failMeta!: (error: Error) => void;
+        let failStorage!: (error: Error) => void;
+        const metaRead = jest.fn().mockImplementationOnce(() => new Promise((_resolve, reject) => { failMeta = reject; }))
+            .mockResolvedValue(undefined);
+        jest.spyOn(AppMeta, 'load').mockImplementation(memoizeAsync(metaRead));
+        storage.getItem.mockImplementationOnce(() => new Promise((_resolve, reject) => { failStorage = reject; }))
+            .mockResolvedValueOnce('{}');
+        const { AppState } = require('react-native');
+        const states: boolean[] = [];
+        function TestComponent() { states.push(useSetupFoundation()); return null; }
+        const view = rtl.render(React.createElement(TestComponent));
+        await rtl.act(async () => {
+            AppState.addEventListener.mock.calls.forEach((call: any[]) => call[1]('active'));
+            failMeta(new Error('User interaction is not allowed.'));
+            await new Promise(resolve => setTimeout(resolve, 0));
+        });
+        await rtl.act(async () => {
+            failStorage(new Error('Failed to read storage file.'));
+            await new Promise(resolve => setTimeout(resolve, 0));
+        });
+        expect(states.at(-1)).toBe(true);
+        expect(metaRead).toHaveBeenCalledTimes(2);
+        expect(storage.getItem).toHaveBeenCalledTimes(2);
+        view.unmount();
+    });
+
     it('returns false initially before services load', () => {
         const { useSetupFoundation, React, rtl } = setup();
 

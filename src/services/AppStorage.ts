@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { debounce, pick } from 'lodash';
+import { cloneDeep, debounce, isEqual, pick } from 'lodash';
 import { makeAutoObservable, makeObservable, observable, runInAction } from 'mobx';
 
 import { memoizeAsync } from '../helpers/memoize';
@@ -41,6 +41,7 @@ function createProp(target: Record<string | symbol, any>, key: string | symbol, 
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createAppStorage<T extends Record<string, any>>(defaults: Partial<T> = {}): T & AppStorageMethods {
+    const initialDefaults = cloneDeep(defaults);
     const target = defaults as T;
     makeAutoObservable(target);
 
@@ -72,19 +73,21 @@ export function createAppStorage<T extends Record<string, any>>(defaults: Partia
     const methods: Record<string, Function> = {
         $load: memoizeAsync(async () => {
             const data = await withProtectedDataRecovery(() => AsyncStorage.getItem(getAsyncStorageKey()));
-            if (data !== null) {
+            if (data !== null && !clearRequested) {
                 const loaded = JSON.parse(data);
                 if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) {
                     throw new Error('Stored configuration must be an object');
                 }
-                if (!clearRequested) {
-                    // Hydration must not schedule a write or overwrite explicit changes
-                    // made while the protected read was pending.
-                    for (const [key, value] of Object.entries(loaded)) {
-                        if (changedKeys.has(key)) continue;
-                        if (!(key in target)) createProp(target, key, value);
-                        else runInAction(() => { (target as Record<string, unknown>)[key] = value; });
-                    }
+                // Nested edits followed by $persist do not pass through the proxy's
+                // setter. Preserve those as well as explicit top-level assignments.
+                for (const key of Object.keys(target)) {
+                    if (!isEqual(target[key], initialDefaults[key])) changedKeys.add(key);
+                }
+                // Hydration itself must not schedule a write.
+                for (const [key, value] of Object.entries(loaded)) {
+                    if (changedKeys.has(key)) continue;
+                    if (!(key in target)) createProp(target, key, value);
+                    else runInAction(() => { (target as Record<string, unknown>)[key] = value; });
                 }
             }
             hydrated = true;
