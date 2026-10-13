@@ -1,6 +1,8 @@
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useMemo, useState } from "react";
+import { AppState } from "react-native";
+import { createLogger } from "../services/Logger";
 
 import { getFoundationConfig } from "../config";
 import { getAppStorage } from "../services/AppStorage";
@@ -27,7 +29,37 @@ export function useSetupFoundation(appIsReady?: () => boolean): boolean {
 
   const [servicesLoaded, setServicesLoaded] = useState(false);
   useEffect(() => {
-    Promise.all([AppMeta.load(), getAppStorage().$load()]).then(() => setServicesLoaded(true));
+    let disposed = false;
+    let loading = false;
+    let loaded = false;
+    let retryRequested = false;
+    const load = async () => {
+      if (disposed || loaded) return;
+      if (loading) { retryRequested = true; return; }
+      retryRequested = false;
+      loading = true;
+      try {
+        // A queued activation must retry both reads after their failed memoized
+        // promises have cleared, rather than reusing a second still-pending read.
+        const results = await Promise.allSettled([AppMeta.load(), getAppStorage().$load()]);
+        for (const result of results) {
+          if (result.status === "rejected") throw result.reason;
+        }
+        loaded = true;
+        if (!disposed) setServicesLoaded(true);
+      } catch (error) {
+        if (!disposed) createLogger("Setup").error("Failed to load foundation services", error);
+      } finally {
+        loading = false;
+        // Coalesce an activation received while the denied read was in flight.
+        if (retryRequested && !disposed && !loaded) void load();
+      }
+    };
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active") void load();
+    });
+    void load();
+    return () => { disposed = true; subscription.remove(); };
   }, []);
 
   const isReady = useMemo(

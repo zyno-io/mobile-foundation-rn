@@ -46,6 +46,7 @@ interface FoundationConfig {
     };
     fonts?: Record<string, any>;
     updaterTimeout?: number;
+    requireProtectedDataAvailability?: boolean;
     statusBar?: {
         barStyle: StatusBarStyle | 'auto';
         backgroundColorKey?: string;
@@ -92,6 +93,40 @@ Optional custom font map passed to `expo-font` during setup. Loaded by `useSetup
 ### `updaterTimeout`
 
 Timeout in milliseconds for each OTA startup/checking phase. Entering checking starts a fresh timer. Downloading starts a separate 10-second timer, while pending installation and restart have no timeout. When a phase times out, the update status UI is cleared, though the underlying work may still complete in the background; entering a new phase makes that phase visible and starts its own timer.
+
+### `requireProtectedDataAvailability`
+
+On iOS, Foundation normally attempts storage and metadata operations immediately.
+A likely protected-data failure waits for native availability and retries once.
+This also covers metadata loading before the setup hook mounts.
+
+Set `requireProtectedDataAvailability: true` in your existing configuration to
+wait before every new managed protected operation. This requires a new iOS
+binary containing Foundation's native availability module. Android behavior is
+unchanged. The option governs Foundation's storage/metadata operations and
+operations passed to `withProtectedDataRecovery`; cached values and the running
+React tree remain available when the device subsequently locks.
+
+Use the exported helper for app-owned keychain access:
+
+```ts
+import { withProtectedDataRecovery } from '@zyno-io/mobile-foundation-rn';
+import * as Keychain from 'react-native-keychain';
+
+const credentials = await withProtectedDataRecovery(() =>
+    Keychain.getGenericPassword({ service: 'my-app-auth' })
+);
+```
+
+The optional second argument `{ signal: controller.signal }` cancels this
+caller's wait; an operation that has already started may still finish.
+Unrelated errors and a failed retry propagate.
+
+Keep the default policy for working background operations such as lock-screen
+VoIP calls. The consuming app chooses file/keychain protection and controls
+startup before JavaScript, including access to Expo's update database.
+Older binaries without native support fall back to a foreground retry signal;
+strict mode reports an unsupported capability instead.
 
 ### `statusBar`
 

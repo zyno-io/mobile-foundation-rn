@@ -1,3 +1,4 @@
+export const isEnabled = true;
 export const updateId = 'update-abc-123';
 export const createdAt = new Date();
 export const isEmbeddedLaunch = false;

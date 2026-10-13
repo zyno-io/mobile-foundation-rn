@@ -58,7 +58,10 @@ await storage.$load();
 
 Loads persisted values from AsyncStorage. Called automatically by `useSetupFoundation`.
 
-Memoized — subsequent calls return immediately.
+Successful loads are memoized. Failed reads or JSON parsing reject and remain
+retryable. Foundation automatically waits for native availability and retries
+a likely iOS protected-data read failure once. See the
+[availability policy](../guide/configuration#requireprotecteddataavailability).
 
 ### `$persist()`
 
@@ -84,6 +87,11 @@ When you set a property on the storage object, it:
 2. Schedules a debounced persist (250ms) to AsyncStorage
 
 Multiple rapid changes result in a single AsyncStorage write.
+
+Writes wait for successful loading and run in order. Loading saved data does
+not schedule a write, and changes made while loading are preserved. A failed
+load cannot overwrite saved values with defaults. Protected-data write failures
+use the same availability policy; a persistent write failure is logged.
 
 ## Dynamic Properties
 

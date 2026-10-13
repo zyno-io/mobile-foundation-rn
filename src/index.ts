@@ -56,6 +56,8 @@ export { Broadcast, useBroadcastEffect } from './helpers/broadcast';
 export { formatPhone, formatCurrency, formatDuration } from './helpers/formatting';
 export { hasHeightOrFlexProps } from './helpers/layout';
 export { memoizeAsync } from './helpers/memoize';
+export { withProtectedDataRecovery } from './helpers/protectedData';
+export type { ProtectedDataRecoveryOptions } from './helpers/protectedData';
 export { createObservableProxy, LoaderState } from './helpers/observable';
 export { getCdnUrlForId, getUriForCacheItem, getCacheUriForBlob } from './helpers/storage';
 export {

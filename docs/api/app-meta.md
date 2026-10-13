@@ -41,4 +41,6 @@ await AppMeta.load();
 
 Populates `deviceId` and `deviceIdEnv` using `react-native-device-info`'s `getUniqueId()`. Called automatically by `useSetupFoundation`.
 
-This method is memoized — calling it multiple times executes the initialization only once.
+Successful initialization is memoized. Failed initialization remains retryable.
+The loader applies Foundation's [protected-data policy](../guide/configuration#requireprotecteddataavailability)
+even when invoked by Sentry, logging or API requests before the setup hook mounts.

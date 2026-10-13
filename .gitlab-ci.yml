@@ -71,6 +71,7 @@ e2e:ios:
     - command -v applesimutils >/dev/null || (brew tap wix/brew && brew install applesimutils)
     - corepack enable
     - yarn --immutable
+    - bash scripts/test-protected-data-native.sh
     - cd test-app
     - yarn --immutable
     - npx detox build-framework-cache

@@ -243,15 +243,24 @@ interface IAppStorage {
 export const AppStorage = createAppStorage<IAppStorage>({});
 ```
 
-AppStorage is a MobX observable proxy with three special methods:
-- `$load()` — Loads persisted state from AsyncStorage (called automatically by `useSetupFoundation`)
-- `$persist()` — Manually triggers a persist
-- `$clear()` — Clears all values and persists
+AppStorage is a MobX observable proxy with three methods:
+
+- `$load()` — Reads saved values from AsyncStorage. `useSetupFoundation()` calls it automatically.
+- `$persist()` — Schedules a save of the current values.
+- `$clear()` — Clears the values in memory and schedules a save.
 
 Setting any property auto-persists with a 250ms debounce:
+
 ```typescript
 AppStorage.deviceToken = 'abc123'; // automatically saved
 ```
+
+Writes wait until `$load()` succeeds. Loading saved values does not trigger a
+save, and changes made while loading are preserved. If there is no saved data,
+the initial values passed to `createAppStorage()` are used.
+
+If reading or parsing saved data fails, `$load()` rejects. Calling it again
+retries the load. The failed load cannot overwrite saved data with defaults.
 
 ### 3. Set Up Your App Entry
 
@@ -276,6 +285,17 @@ function RootLayout() {
 export default RootLayout;
 ```
 
+`useSetupFoundation()` keeps the app unready if storage or metadata fails to
+load, and retries when the app next becomes active. Foundation automatically
+recovers likely iOS protected-data failures, including metadata reads started
+by Sentry, logging and API requests before the setup hook mounts. See
+[protected data recovery](#protected-data-recovery) for the optional strict policy.
+
+OTA checks and update-related storage reads start once foundation is ready and
+the app is active. If `expo-updates` is disabled, the updater skips OTA
+operations. Checks for native App Store / Play Store updates still run when
+configured.
+
 ## Configuration Reference
 
 ### `configureFoundation(config)`
@@ -289,10 +309,49 @@ export default RootLayout;
 | `statusBar` | `{ barStyle, backgroundColorKey? }` | No | Status bar styling |
 | `splashScreen` | `'auto' \| 'manual'` | No | Splash screen hide behavior (default: `'auto'`) |
 | `updaterTimeout` | `number` | No | Max ms for each startup/checking phase; downloading uses 10 seconds and installation has no timeout |
+| `requireProtectedDataAvailability` | `boolean` | No | On iOS, wait before managed storage and metadata operations. Default `false` attempts reads immediately and recovers denied access. See [protected data recovery](#protected-data-recovery). |
 | `deepLinkHandler` | `(url: string) => void` | No | Handler for queued launch URLs and subsequent deep-link events |
 | `supportContact` | `string` | No | Contact info shown in error dialogs |
 | `userErrorClasses` | `ErrorClass[]` | No | Error classes whose messages are shown to users |
 | `defaults` | `FoundationDefaults` | No | Per-component style defaults (see below) |
+
+### Protected data recovery
+
+Foundation handles iOS storage and keychain availability automatically. By
+default, it attempts the operation first. If access fails with a likely
+protected-data error, it waits for native availability and retries once.
+Unrelated errors and a failed retry propagate to the caller.
+
+Apps that can wait for unlock may add `requireProtectedDataAvailability: true`
+to their `configureFoundation()` options. This waits before each managed
+storage or metadata operation, even if it could succeed while locked. It
+requires a new iOS binary containing Foundation's native availability module.
+The option applies to Foundation's operations and the shared wrapper below;
+it has no effect on Android.
+
+Use the shared wrapper for your app's own protected operations:
+
+```typescript
+import { withProtectedDataRecovery } from '@zyno-io/mobile-foundation-rn';
+import * as Keychain from 'react-native-keychain';
+
+const credentials = await withProtectedDataRecovery(() =>
+    Keychain.getGenericPassword({ service: 'my-app-auth' })
+);
+```
+
+An optional second argument, `{ signal: controller.signal }`, cancels this
+caller's wait. An operation that already started may still finish.
+
+Data protected until the first unlock can remain accessible while the phone is
+locked. Apps that need background work, such as lock-screen calls, should keep
+the default policy and choose appropriate file/keychain protection. The app
+also owns native startup ordering: Expo initializes before JavaScript, so its
+database needs a native startup gate if it may be unreadable.
+
+Older iOS binaries without the availability module use foreground activation
+as a fallback signal for one retry. Strict mode reports a missing-capability
+error on those binaries instead of treating foreground as proof of availability.
 
 ### Component defaults (`config.defaults`)
 

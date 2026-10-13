@@ -6,12 +6,19 @@ import { Alert, AppState, Linking, Platform } from "react-native";
 
 import { getFoundationConfig } from "../config";
 import { LoaderState } from "../helpers/observable";
+import { withProtectedDataRecovery } from "../helpers/protectedData";
 import { useAppStateEffect } from "../hooks/useAppStateEffect";
 import { getExpoUpdatesDatabaseDiagnostics } from "../native/MobileFoundationDiagnostics";
 import { AppMeta } from "./AppMeta";
 import { createLogger } from "./Logger";
 
 const logger = createLogger("Updater");
+
+const protectedStorage = {
+  getItem: (key: string) => withProtectedDataRecovery(() => AsyncStorage.getItem(key)),
+  setItem: (key: string, value: string) => withProtectedDataRecovery(() => AsyncStorage.setItem(key, value)),
+  removeItem: (key: string) => withProtectedDataRecovery(() => AsyncStorage.removeItem(key)),
+};
 
 type UpdateInstallTarget = string | { type: Updates.UpdateInfoType.ROLLBACK } | null;
 const EMBEDDED_ROLLBACK: UpdateInstallTarget = { type: Updates.UpdateInfoType.ROLLBACK };
@@ -180,6 +187,7 @@ export const Updater = {
       logger.info("Runtime info", {
         createdAt: Updates.createdAt,
         isEmbeddedLaunch: Updates.isEmbeddedLaunch,
+        isEnabled: Updates.isEnabled,
         isEmergencyLaunch: Updates.isEmergencyLaunch,
         emergencyLaunchReason: Updates.emergencyLaunchReason,
         launchDuration: Updates.launchDuration,
@@ -187,35 +195,57 @@ export const Updater = {
         updateId: Updates.updateId,
       });
 
-      // Native (app-store) update status is independent of OTA and must run in all
-      // builds (incl. dev / E2E), so it runs before the dev gate. It self-skips when
-      // MUS config is absent.
-      Updater.loadNativeStatus();
-
-      if (AppMeta.isDevelopment) return;
-
-      // Decide up front whether we're stuck in an install/downgrade loop.
-      // installUpdate awaits this before acting on the suppression decision.
-      Updater._installCircuitReady = Updater._evaluateInstallCircuit();
-      Updater._startInstallDeferralAutorun();
-
-      // Ship expo-updates' native log so the previous launch's failure
-      // chain (the error that rolled us back to the embedded bundle) is
-      // captured — it never reaches the JS logger otherwise.
-      void Updater._logNativeUpdateLog();
-
-      // Device-targeted OTA request headers (OTA-only -> after the dev gate). Register
-      // before the first check so AppMeta.load() applies headers first.
-      Updater._startHeadersSync();
-
-      AppMeta.load()
-        .then(() => Updater._startHeadersSync())
-        .then(() => {
-          Updater.scheduleForegroundUpdateCheck();
-        });
     }, []);
 
-    if (!AppMeta.isDevelopment) {
+    useEffect(() => {
+      if (!appReady) return;
+      let started = false;
+      const start = () => {
+        if (started || AppState.currentState !== "active") return;
+        started = true;
+        // Store-update status remains independent of OTA enablement and dev
+        // mode, but automatic checks wait for ready foreground startup.
+        void Updater.loadNativeStatus().catch(error => logger.warn("Failed to initialize store-update checks", error));
+      };
+      const subscription = AppState.addEventListener("change", state => { if (state === "active") start(); });
+      start();
+      return () => subscription.remove();
+    }, [appReady]);
+
+    useEffect(() => {
+      if (AppMeta.isDevelopment || !appReady || !Updates.isEnabled) return;
+      let started = false;
+      const start = () => {
+        if (started || AppState.currentState !== "active") return;
+        started = true;
+        // Decide up front whether we're stuck in an install/downgrade loop.
+        // installUpdate awaits this before acting on the suppression decision.
+        Updater._installCircuitReady = Updater._evaluateInstallCircuit();
+        Updater._startInstallDeferralAutorun();
+
+        // Ship expo-updates' native log so the previous launch's failure
+        // chain (the error that rolled us back to the embedded bundle) is
+        // captured — it never reaches the JS logger otherwise.
+        void Updater._logNativeUpdateLog();
+
+        // Device-targeted OTA request headers (OTA-only -> after the dev gate). Register
+        // before the first check so AppMeta.load() applies headers first.
+        Updater._startHeadersSync();
+
+        AppMeta.load()
+          .then(() => Updater._startHeadersSync())
+          .then(() => {
+            Updater.scheduleForegroundUpdateCheck();
+          }).catch(error => logger.error("Failed to initialize update checks", error));
+      };
+      const subscription = AppState.addEventListener("change", state => {
+        if (state === "active") start();
+      });
+      start();
+      return () => subscription.remove();
+    }, [appReady]);
+
+    if (!AppMeta.isDevelopment && Updates.isEnabled) {
       useAppStateEffect((state) => {
         if (state === "active") {
           Updater.scheduleForegroundUpdateCheck();
@@ -332,6 +362,7 @@ export const Updater = {
   },
 
   async _downloadUpdate() {
+    if (!Updates.isEnabled || !Updater._appReady || AppState.currentState !== "active") return false;
     if (Updater.shouldDeferUpdate()) {
       logger.info("Skipping update check (deferred)");
       return false;
@@ -388,6 +419,7 @@ export const Updater = {
   },
 
   async installUpdate(pendingTarget?: UpdateInstallTarget) {
+    if (!Updates.isEnabled) return;
     const resolvedTarget = Updater._resolvePendingInstallTarget(pendingTarget);
 
     if (isEmbeddedRollback(resolvedTarget) && Updates.isEmbeddedLaunch) return;
@@ -579,7 +611,7 @@ export const Updater = {
         Updater._circuitOpen = false;
         Updater._suppressedUpdateId = null;
         Updater._lastFailedUpdateId = null;
-        await AsyncStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
+        await protectedStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
         return;
       }
       const state = await Updater._readLoopState();
@@ -611,22 +643,22 @@ export const Updater = {
     count: number;
     firstAt: number;
   } | null> {
-    const raw = await AsyncStorage.getItem(INSTALL_LOOP_STORAGE_KEY);
+    const raw = await protectedStorage.getItem(INSTALL_LOOP_STORAGE_KEY);
     if (!raw) return null;
     let parsed: { updateId?: string | null; count?: number; firstAt?: number };
     try {
       parsed = JSON.parse(raw);
     } catch {
-      await AsyncStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
+      await protectedStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
       return null;
     }
     if (typeof parsed.count !== "number" || typeof parsed.firstAt !== "number") {
-      await AsyncStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
+      await protectedStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
       return null;
     }
     const elapsed = Date.now() - parsed.firstAt;
     if (elapsed < 0 || elapsed >= INSTALL_LOOP_WINDOW_MS) {
-      await AsyncStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
+      await protectedStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
       return null;
     }
     return { updateId: parsed.updateId ?? null, count: parsed.count, firstAt: parsed.firstAt };
@@ -644,7 +676,7 @@ export const Updater = {
         prev && prev.updateId === updateId
           ? { updateId, count: prev.count + 1, firstAt: prev.firstAt }
           : { updateId, count: 1, firstAt: Date.now() };
-      await AsyncStorage.setItem(INSTALL_LOOP_STORAGE_KEY, JSON.stringify(next));
+      await protectedStorage.setItem(INSTALL_LOOP_STORAGE_KEY, JSON.stringify(next));
     } catch {
       // best-effort; loop protection is advisory
     }
@@ -657,9 +689,9 @@ export const Updater = {
       const prev = await Updater._readLoopState();
       if (!prev || prev.updateId !== updateId) return;
       if (prev.count <= 1) {
-        await AsyncStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
+        await protectedStorage.removeItem(INSTALL_LOOP_STORAGE_KEY);
       } else {
-        await AsyncStorage.setItem(
+        await protectedStorage.setItem(
           INSTALL_LOOP_STORAGE_KEY,
           JSON.stringify({ ...prev, count: prev.count - 1 }),
         );
@@ -689,7 +721,7 @@ export const Updater = {
       // we shipped, then advance the high-water mark across all read entries.
       let lastTs = 0;
       try {
-        const raw = await AsyncStorage.getItem(NATIVE_LOG_TS_KEY);
+        const raw = await protectedStorage.getItem(NATIVE_LOG_TS_KEY);
         if (raw) lastTs = Number(raw) || 0;
       } catch {
         // treat as no watermark
@@ -701,7 +733,7 @@ export const Updater = {
       );
       if (maxTs > lastTs) {
         try {
-          await AsyncStorage.setItem(NATIVE_LOG_TS_KEY, String(maxTs));
+          await protectedStorage.setItem(NATIVE_LOG_TS_KEY, String(maxTs));
         } catch {
           // best-effort
         }
@@ -779,7 +811,7 @@ export const Updater = {
   // ===================================================================
 
   _startHeadersSync(): Promise<void> {
-    if (AppMeta.isDevelopment) return Promise.resolve();
+    if (AppMeta.isDevelopment || !Updates.isEnabled) return Promise.resolve();
     if (_headersSyncPromise) return _headersSyncPromise;
     if (!getFoundationConfig().env.MUS_CHANNEL) return Promise.resolve();
     if (!Updates.isEmbeddedLaunch || Updates.isEmergencyLaunch) {

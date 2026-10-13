@@ -83,6 +83,27 @@ describe('Updater', () => {
         });
     });
 
+    describe('protected background startup', () => {
+        it('skips OTA APIs when initialization disabled updates', async () => {
+            const { Updater, Updates } = setup();
+            Object.defineProperty(Updates, 'isEnabled', { value: false, configurable: true });
+            expect(await Updater.downloadUpdate()).toBe(false);
+            await Updater.installUpdate();
+            await Updater._startHeadersSync();
+            expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+            expect(Updates.fetchUpdateAsync).not.toHaveBeenCalled();
+            expect(Updates.reloadAsync).not.toHaveBeenCalled();
+            expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
+        });
+
+        it('skips a direct update request during a background cold start', async () => {
+            const { Updater, Updates } = setup();
+            require('react-native').AppState.currentState = 'background';
+            expect(await Updater.downloadUpdate()).toBe(false);
+            expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+        });
+    });
+
     describe('OTA deferral', () => {
         it('shouldDeferUpdate is false with no listener', () => {
             const { Updater } = setup();
@@ -129,6 +150,42 @@ describe('Updater', () => {
             act(() => runInAction(() => deferred.set(false)));
             expect(Updater.statusText).toBe('Downloading update...');
             view.unmount();
+        });
+    });
+
+    describe('automatic store-update status', () => {
+        it('waits for ready foreground startup even with OTA disabled', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = setup();
+                const React = require('react');
+                const { render, act } = require('@testing-library/react-native/pure');
+                const { AppState } = require('react-native');
+                Object.defineProperty(Updates, 'isEnabled', { value: false, configurable: true });
+                AppState.currentState = 'background';
+                const listeners: ((state: string) => void)[] = [];
+                AppState.addEventListener.mockImplementation((_event: string, listener: (state: string) => void) => {
+                    listeners.push(listener);
+                    return { remove: jest.fn() };
+                });
+                const emit = (state: string) => { AppState.currentState = state; listeners.forEach(listener => listener(state)); };
+                const load = jest.spyOn(Updater, 'loadNativeStatus').mockResolvedValue(undefined);
+                function Harness({ ready }: { ready: boolean }) {
+                    Updater._useHook(ready);
+                    return null;
+                }
+                const view = render(React.createElement(Harness, { ready: false }));
+                view.rerender(React.createElement(Harness, { ready: true }));
+                expect(load).not.toHaveBeenCalled();
+                act(() => emit('active'));
+                expect(load).toHaveBeenCalledTimes(1);
+                act(() => emit('background'));
+                act(() => emit('active'));
+                expect(load).toHaveBeenCalledTimes(1);
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
         });
     });
 

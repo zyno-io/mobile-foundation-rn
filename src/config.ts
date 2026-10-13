@@ -56,6 +56,11 @@ export interface FoundationConfig {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fonts?: Record<string, any>;
     updaterTimeout?: number;
+    /** iOS: wait for native protected-data availability before managed storage
+     * and metadata operations. Default false attempts working background reads
+     * immediately and recovers denied operations with one retry after availability.
+     * Requires the Foundation native availability module when enabled. */
+    requireProtectedDataAvailability?: boolean;
     statusBar?: {
         barStyle: StatusBarStyle | 'auto';
         backgroundColorKey?: string;

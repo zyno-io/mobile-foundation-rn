@@ -22,9 +22,9 @@ export class SentryHelper {
             enableNativeFramesTracking: true,
             integrations: [navigationIntegration]
         });
-        AppMeta.load().then(() => {
+        void AppMeta.load().then(() => {
             Sentry.setUser({ id: AppMeta.deviceIdEnv });
-        });
+        }).catch(error => { Sentry.captureException(error); });
     }
 
     static useNavigationInstrumentation() {
