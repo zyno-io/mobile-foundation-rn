@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import {
     BlurEvent,
     FocusEvent,
-    NativeSyntheticEvent,
     StyleProp,
     TextInput,
+    TextInputInstance,
     TextInputProps,
-    TextInputSubmitEditingEventData,
+    TextInputSubmitEditingEvent,
     View,
     ViewStyle
 } from 'react-native';
@@ -29,7 +29,9 @@ interface MfTextInputProps {
     inputWrapperStyle?: StyleProp<ViewStyle>;
 }
 
-export const MfTextInput = React.forwardRef<TextInput, TextInputProps & MfTextInputProps>((props, forwardedRef) => {
+export const MfTextInput: React.ForwardRefExoticComponent<
+    React.PropsWithoutRef<TextInputProps & MfTextInputProps> & React.RefAttributes<TextInputInstance>
+> = React.forwardRef<TextInputInstance, TextInputProps & MfTextInputProps>((props, forwardedRef) => {
     const {
         mask,
         onFocus,
@@ -46,7 +48,7 @@ export const MfTextInput = React.forwardRef<TextInput, TextInputProps & MfTextIn
         ...nativeProps
     } = props;
     const { value } = nativeProps;
-    const ref = React.createRef<TextInput>();
+    const ref = React.createRef<TextInputInstance>();
     const { ref: nextTextInputRef, focusNext } = useNextTextInputRef();
 
     const styles = useStyles(styleGen);
@@ -87,7 +89,7 @@ export const MfTextInput = React.forwardRef<TextInput, TextInputProps & MfTextIn
         return onChangeText?.(val);
     };
 
-    const internalOnSubmitEditing = (e: NativeSyntheticEvent<TextInputSubmitEditingEventData>) => {
+    const internalOnSubmitEditing = (e: TextInputSubmitEditingEvent) => {
         if (onSubmitEditing) {
             onSubmitEditing(e);
         } else if (returnKeyType === 'next') {

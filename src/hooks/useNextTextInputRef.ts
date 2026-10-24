@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { TextInput } from 'react-native';
+import { RefObject, useCallback, useEffect, useRef } from 'react';
+import { TextInputInstance } from 'react-native';
 
 import { useMfFormContext } from '../components/MfForm';
 
-export function useNextTextInputRef() {
-    const currentRef = useRef<TextInput | null>(null);
+export function useNextTextInputRef(): { ref: RefObject<TextInputInstance | null>; focusNext: () => void } {
+    const currentRef = useRef<TextInputInstance | null>(null);
     const formContext = useMfFormContext();
 
     // Function to focus the next input

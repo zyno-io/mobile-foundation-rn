@@ -18,7 +18,7 @@ Your app must install these packages:
 - `@react-navigation/native`, `@react-navigation/stack`
 - `@sentry/react-native`
 - `detox` (optional; required when using the Detox config plugin)
-- `expo` (optional; required when using the Expo config plugin)
+- `expo` 58 or newer (optional; required when using the Expo config plugin)
 - `expo-font`, `expo-linking`, `expo-splash-screen`, `expo-testflight`, `expo-updates`
 - `lodash`
 - `mobx`, `mobx-react-lite`
@@ -28,9 +28,9 @@ Your app must install these packages:
 ## Expo Config Plugins
 
 The package includes reusable Expo config plugins for Android identity, raw
-Gradle settings, Detox native setup, and the iOS UIScene life cycle. They run
-during `expo prebuild`, so generated native files do not need to be committed
-or patched in CI.
+Gradle settings, and Detox native setup. They require Expo SDK 58 or newer and
+run during `expo prebuild`, so generated native files do not need to be
+committed or patched in CI. Expo handles the iOS scene life cycle automatically.
 
 ### Android Identity
 
@@ -159,25 +159,6 @@ when those values differ:
 ]
 ```
 
-### iOS UIScene Life Cycle
-
-Apps built with the iOS 27 SDK refuse to launch unless they adopt the UIScene
-life cycle ("UIScene life cycle is required for apps built with this SDK"),
-which Expo's bare template does not do. The combined plugin therefore adds a
-single-window `UIApplicationSceneManifest` to `Info.plist` and rewrites the
-generated `AppDelegate.swift` so a `SceneDelegate` creates the window and
-starts React Native — subclassing Expo's `ExpoAppSceneDelegate` when the
-installed Expo ships it (57.0.2x+), otherwise generating a self-contained
-delegate that forwards scene life-cycle events, URLs, universal links, and
-quick actions back to the app delegate. It is on by default; opt out when the
-app adopts scenes itself:
-
-```json
-["@zyno-io/mobile-foundation-rn", { "uiScene": false }]
-```
-
-The standalone entry point is `@zyno-io/mobile-foundation-rn/plugin/ui-scene`.
-
 `allowCleartextTraffic` defaults to `false`; enable it only for a dedicated E2E
 build that does not manage cleartext traffic through its own manifest or
 network-security plugin. `disableAutofill` defaults to `true` for reliable E2E
@@ -219,7 +200,7 @@ configureFoundation({
     },
     fonts: { Inter_400Regular, Inter_700Bold },
     icons: { check: faCheck, spinner: faSpinnerThird },
-    statusBar: { barStyle: 'light-content', backgroundColorKey: 'background' },
+    statusBar: { barStyle: 'light-content' },
     splashScreen: 'auto', // default; use 'manual' to control splash yourself
     updaterTimeout: 4000,
     deepLinkHandler: (url) => handleDeepLink(url),
@@ -306,7 +287,7 @@ configured.
 | `env` | `{ APP_ENV, BUILD_VERSION, SENTRY_DSN, LOGGER_URL, CDN_URL }` | Yes | Environment config |
 | `icons` | `{ check: IconProp; spinner: IconProp }` | Yes | FontAwesome icons for checkbox and loader |
 | `fonts` | `Record<string, any>` | No | Font map passed to `useFonts()` |
-| `statusBar` | `{ barStyle, backgroundColorKey? }` | No | Status bar styling |
+| `statusBar` | `{ barStyle }` | No | Status bar styling |
 | `splashScreen` | `'auto' \| 'manual'` | No | Splash screen hide behavior (default: `'auto'`) |
 | `updaterTimeout` | `number` | No | Max ms for each startup/checking phase; downloading uses 10 seconds and installation has no timeout |
 | `requireProtectedDataAvailability` | `boolean` | No | On iOS, wait before managed storage and metadata operations. Default `false` attempts reads immediately and recovers denied access. See [protected data recovery](#protected-data-recovery). |

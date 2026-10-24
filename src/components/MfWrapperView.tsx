@@ -2,7 +2,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { debounce } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Insets, StyleProp, StyleSheet, ViewProps, ViewStyle } from 'react-native';
+import { Dimensions, Insets, StyleProp, StyleSheet, ViewInstance, ViewProps, ViewStyle } from 'react-native';
 import Animated, { AnimatedStyle, useDerivedValue, useSharedValue } from 'react-native-reanimated';
 
 import { hasHeightOrFlexProps } from '../helpers/layout';
@@ -33,7 +33,7 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
     // calculate our distance from top/bottom whenever we layout
     // if we're a child of something that's already pushed off the edge (like a nav bar or tab bar),
     // we want to make sure we're not accounting for insets in those contexts
-    const viewRef = useRef<Animated.View>(null);
+    const viewRef = useRef<ViewInstance>(null);
     const [distanceFromTop, setDistanceFromTop] = useState<number>(0);
     const [distanceFromBottom, setDistanceFromBottom] = useState<number>(0);
     const onLayout = useCallback(
@@ -68,7 +68,7 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
     }
 
     // calculate top & bottom insets
-    const contentContainerStyle = StyleSheet.flatten(props.contentContainerStyle ?? props.style ?? {});
+    const contentContainerStyle = StyleSheet.flatten(props.contentContainerStyle ?? props.style) ?? {};
     const insetsPaddingTop: number = Math.max(
         insets.top - distanceFromTop,
         typeof contentContainerStyle.paddingTop === 'number'
@@ -120,7 +120,7 @@ export const MfWrapperView: React.FC<MfWrapperViewProps> = props => {
     });
 
     const style = useMemo<StyleProp<AnimatedStyle<StyleProp<ViewStyle>>>>(() => {
-        const style = StyleSheet.flatten(props.style ?? {});
+        const style = StyleSheet.flatten(props.style) ?? {};
         return [
             !hasHeightOrFlexProps(style) && { flex: 1 },
             { backgroundColor: contentContainerStyle.backgroundColor ?? 'transparent' },

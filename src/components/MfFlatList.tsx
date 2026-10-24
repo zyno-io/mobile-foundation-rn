@@ -17,7 +17,7 @@ export const MfFlatList = React.forwardRef<FlatList, MfFlatListProps<any>>((prop
     const [insetsPadding, setInsetsPadding] = useState<Insets | null>(null);
 
     const style = useMemo(() => {
-        const style = StyleSheet.flatten(props.style ?? {});
+        const style = StyleSheet.flatten(props.style) ?? {};
         return {
             ...(!hasHeightOrFlexProps(style) && { flex: 1 }),
             ...style
@@ -25,7 +25,7 @@ export const MfFlatList = React.forwardRef<FlatList, MfFlatListProps<any>>((prop
     }, [props.style]);
 
     const contentContainerStyle = useMemo(() => {
-        const style = StyleSheet.flatten(props.contentContainerStyle ?? {});
+        const style = StyleSheet.flatten(props.contentContainerStyle) ?? {};
         return {
             ...(!hasHeightOrFlexProps(style) && { flexGrow: 1 }),
             ...style,

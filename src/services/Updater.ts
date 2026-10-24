@@ -898,7 +898,7 @@ export const Updater = {
     }
     if (!_nativeAppStateListenerStarted) {
       _nativeAppStateListenerStarted = true;
-      let lastAppState: string = AppState.currentState;
+      let lastAppState = AppState.currentState;
       AppState.addEventListener("change", (state) => {
         if (state === "active" && lastAppState !== "active") {
           void Updater._fetchNativeStatus();

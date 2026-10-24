@@ -1,15 +1,17 @@
 import { createContext, useContext, useMemo } from 'react';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { ImageStyle, StyleSheet, TextStyle, useColorScheme, ViewStyle } from 'react-native';
 
 import { getFoundationConfig } from '../config';
 import { ColorScheme } from '../types';
 
-export type StyleGenerator<T extends StyleSheet.NamedStyles<T>> = (colors: ColorScheme) => T;
-export function createStyles<T extends StyleSheet.NamedStyles<T>>(fn: StyleGenerator<T>): StyleGenerator<T> {
+type NamedStyles<T> = { [K in keyof T]: ViewStyle | TextStyle | ImageStyle };
+
+export type StyleGenerator<T extends NamedStyles<T>> = (colors: ColorScheme) => T;
+export function createStyles<T extends NamedStyles<T>>(fn: StyleGenerator<T>): StyleGenerator<T> {
     return (colors: ColorScheme) => StyleSheet.create(fn(colors));
 }
 
-export function useStyles<T extends StyleSheet.NamedStyles<T>>(generator: StyleGenerator<T>): T {
+export function useStyles<T extends NamedStyles<T>>(generator: StyleGenerator<T>): T {
     const systemScheme = useColorScheme();
     const overrideScheme = useColorSchemeOverride();
     const scheme = overrideScheme ?? systemScheme;

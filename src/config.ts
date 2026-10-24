@@ -63,6 +63,7 @@ export interface FoundationConfig {
     requireProtectedDataAvailability?: boolean;
     statusBar?: {
         barStyle: StatusBarStyle | 'auto';
+        /** @deprecated React Native 0.88 no longer supports status bar background colors. */
         backgroundColorKey?: string;
     };
     splashScreen?: 'auto' | 'manual';

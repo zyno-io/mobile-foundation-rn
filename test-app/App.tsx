@@ -71,10 +71,10 @@ function TabNavigator() {
                 tabBarStyle: { height: 90 },
             }}
         >
-            <TabNav.Screen name="InputTab" component={TabBarBottomInputScreen} options={{ tabBarTestID: 'tab-InputTab' }} />
-            <TabNav.Screen name="EmptyTab1" component={EmptyTabScreen} options={{ tabBarTestID: 'tab-EmptyTab1' }} />
-            <TabNav.Screen name="EmptyTab2" component={EmptyTabScreen} options={{ tabBarTestID: 'tab-EmptyTab2' }} />
-            <TabNav.Screen name="EmptyTab3" component={EmptyTabScreen} options={{ tabBarTestID: 'tab-EmptyTab3' }} />
+            <TabNav.Screen name="InputTab" component={TabBarBottomInputScreen} options={{ tabBarButtonTestID: 'tab-InputTab' }} />
+            <TabNav.Screen name="EmptyTab1" component={EmptyTabScreen} options={{ tabBarButtonTestID: 'tab-EmptyTab1' }} />
+            <TabNav.Screen name="EmptyTab2" component={EmptyTabScreen} options={{ tabBarButtonTestID: 'tab-EmptyTab2' }} />
+            <TabNav.Screen name="EmptyTab3" component={EmptyTabScreen} options={{ tabBarButtonTestID: 'tab-EmptyTab3' }} />
         </TabNav.Navigator>
     );
 }
@@ -103,8 +103,8 @@ function ComposerTabNavigator() {
                 tabBarStyle: { height: 90 },
             }}
         >
-            <ComposerTabNav.Screen name="Chat" component={ComposerPatternScreen} options={{ tabBarTestID: 'tab-Chat' }} />
-            <ComposerTabNav.Screen name="Empty1" component={EmptyTabScreen} options={{ tabBarTestID: 'tab-Empty1' }} />
+            <ComposerTabNav.Screen name="Chat" component={ComposerPatternScreen} options={{ tabBarButtonTestID: 'tab-Chat' }} />
+            <ComposerTabNav.Screen name="Empty1" component={EmptyTabScreen} options={{ tabBarButtonTestID: 'tab-Empty1' }} />
         </ComposerTabNav.Navigator>
     );
 }

@@ -25,7 +25,7 @@ function CustomInput({ placeholder }: { placeholder: string }) {
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `ref` | `RefObject<TextInput>` | Attach to your TextInput |
+| `ref` | `RefObject<TextInputInstance \| null>` | Attach to your TextInput |
 | `focusNext` | `() => void` | Focus the next input in form order, or blur if last |
 
 ## How It Works

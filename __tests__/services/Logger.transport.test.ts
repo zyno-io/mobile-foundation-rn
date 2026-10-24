@@ -136,7 +136,7 @@ describe("Logger remote transport", () => {
     });
     expect(init.body).toBeInstanceOf(ArrayBuffer);
 
-    const json = ungzip(new Uint8Array(init.body as ArrayBuffer), { to: "string" }) as string;
+    const json = ungzip(new Uint8Array(init.body as ArrayBuffer), { toText: true });
     const payload = JSON.parse(json);
     expect(payload.e).toEqual([
       expect.objectContaining({

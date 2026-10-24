@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useRef } from 'react';
-import { TextInput } from 'react-native';
+import { TextInputInstance } from 'react-native';
 
 interface TextInputInfo {
-    ref: TextInput;
+    ref: TextInputInstance;
     x: number;
     y: number;
 }
 
 interface FormContextValue {
-    registerInput: (ref: TextInput) => void;
-    unregisterInput: (ref: TextInput) => void;
-    getNextInput: (currentRef: TextInput) => TextInput | null;
+    registerInput: (ref: TextInputInstance) => void;
+    unregisterInput: (ref: TextInputInstance) => void;
+    getNextInput: (currentRef: TextInputInstance) => TextInputInstance | null;
 }
 
 export const MfFormContext = createContext<FormContextValue | null>(null);
@@ -20,20 +20,20 @@ interface MfFormProps {
 }
 
 export function MfForm({ children }: MfFormProps) {
-    const inputsRef = useRef<Map<TextInput, TextInputInfo>>(new Map());
+    const inputsRef = useRef<Map<TextInputInstance, TextInputInfo>>(new Map());
 
-    const registerInput = (ref: TextInput) => {
+    const registerInput = (ref: TextInputInstance) => {
         // Measure the position of the text input
         ref.measureInWindow((x, y) => {
             inputsRef.current.set(ref, { ref, x, y });
         });
     };
 
-    const unregisterInput = (ref: TextInput) => {
+    const unregisterInput = (ref: TextInputInstance) => {
         inputsRef.current.delete(ref);
     };
 
-    const getNextInput = (currentRef: TextInput): TextInput | null => {
+    const getNextInput = (currentRef: TextInputInstance): TextInputInstance | null => {
         const inputs = inputsRef.current;
         const currentInput = inputs.get(currentRef);
         if (!currentInput) return null;

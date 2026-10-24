@@ -16,7 +16,9 @@ export interface MfTouchableOpacityProps extends TouchableOpacityProps {
  * default. Use this where you want the built-in opacity feedback; use
  * {@link MfPressable} otherwise.
  */
-export const MfTouchableOpacity = React.forwardRef<React.ComponentRef<typeof TouchableOpacity>, MfTouchableOpacityProps>((props, ref) => {
+export const MfTouchableOpacity: React.ForwardRefExoticComponent<
+    React.PropsWithoutRef<MfTouchableOpacityProps> & React.RefAttributes<React.ComponentRef<typeof TouchableOpacity>>
+> = React.forwardRef<React.ComponentRef<typeof TouchableOpacity>, MfTouchableOpacityProps>((props, ref) => {
     const { pressThrottleMs, onPress, ...rest } = props;
     const throttledOnPress = useThrottledPress(onPress, pressThrottleMs);
 

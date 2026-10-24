@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { Insets, LayoutChangeEvent, ScrollView, ScrollViewProps, StyleSheet } from 'react-native';
+import { Insets, LayoutChangeEvent, ScrollView, ScrollViewInstance, ScrollViewProps, StyleSheet } from 'react-native';
 
 import { computeScrollIntoViewOffset, hasHeightOrFlexProps } from '../helpers/layout';
 
@@ -13,10 +13,10 @@ export interface MfScrollViewProps extends ScrollViewProps, MfWrapperViewCommonP
 /** Gap kept between the focused input and the edge of the visible area when auto-scrolling. */
 const ACTIVE_INPUT_PADDING = 10;
 
-export const MfScrollView = React.forwardRef<ScrollView, MfScrollViewProps>((props, forwardedRef) => {
+export const MfScrollView = React.forwardRef<ScrollViewInstance, MfScrollViewProps>((props, forwardedRef) => {
     const activeTextInputCtx = useMfActiveTextInputContext();
 
-    const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef = useRef<ScrollViewInstance>(null);
     // kept in a ref rather than state: onScroll fires every frame and nothing needs to re-render on it
     const scrollOffsetRef = useRef(0);
 
@@ -54,7 +54,7 @@ export const MfScrollView = React.forwardRef<ScrollView, MfScrollViewProps>((pro
     const [insetsPadding, setInsetsPadding] = useState<Insets | null>(null);
 
     const style = useMemo(() => {
-        const style = StyleSheet.flatten(props.style ?? {});
+        const style = StyleSheet.flatten(props.style) ?? {};
         return {
             ...(!hasHeightOrFlexProps(style) && { flex: 1 }),
             ...style
@@ -62,7 +62,7 @@ export const MfScrollView = React.forwardRef<ScrollView, MfScrollViewProps>((pro
     }, [props.style]);
 
     const contentContainerStyle = useMemo(() => {
-        const style = StyleSheet.flatten(props.contentContainerStyle ?? {});
+        const style = StyleSheet.flatten(props.contentContainerStyle) ?? {};
         return {
             ...(!hasHeightOrFlexProps(style) && { flexGrow: 1 }),
             ...style,

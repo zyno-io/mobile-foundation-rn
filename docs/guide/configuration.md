@@ -133,7 +133,7 @@ strict mode reports an unsupported capability instead.
 Controls the `StatusBar` rendered by `MfProvider`:
 
 - `barStyle: 'auto'` — automatically sets `light-content` for dark theme, `dark-content` for light
-- `backgroundColorKey` — key from `ColorScheme` to use as the status bar background color (Android)
+- `backgroundColorKey` — deprecated and ignored; React Native 0.88 removed status bar background colors
 
 ### `splashScreen`
 

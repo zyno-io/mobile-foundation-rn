@@ -1,10 +1,12 @@
 import React from 'react';
-import { Text, TextProps, View } from 'react-native';
+import { Text, TextInstance, TextProps, View } from 'react-native';
 
 import { getFoundationConfig } from '../config';
 import { useColors } from '../helpers/styles';
 
-export const MfText = React.forwardRef<Text, TextProps>((props, ref) => {
+export const MfText: React.ForwardRefExoticComponent<
+    React.PropsWithoutRef<TextProps> & React.RefAttributes<TextInstance>
+> = React.forwardRef<TextInstance, TextProps>((props, ref) => {
     const colors = useColors();
     const { style, ...rest } = props;
     const fontFamily = getFoundationConfig().defaults?.fontFamily ?? 'Inter';

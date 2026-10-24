@@ -19,7 +19,9 @@ export interface MfPressableProps extends PressableProps {
  * Use {@link MfGesturePressable} instead where the call site currently uses
  * `react-native-gesture-handler`'s `Pressable`; the two are not interchangeable.
  */
-export const MfPressable = React.forwardRef<React.ComponentRef<typeof Pressable>, MfPressableProps>((props, ref) => {
+export const MfPressable: React.ForwardRefExoticComponent<
+    React.PropsWithoutRef<MfPressableProps> & React.RefAttributes<React.ComponentRef<typeof Pressable>>
+> = React.forwardRef<React.ComponentRef<typeof Pressable>, MfPressableProps>((props, ref) => {
     const { pressThrottleMs, onPress, ...rest } = props;
     const throttledOnPress = useThrottledPress(onPress, pressThrottleMs);
 

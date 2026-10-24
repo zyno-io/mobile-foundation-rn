@@ -1,6 +1,6 @@
 import { IconProp } from '@fortawesome/fontawesome-svg-core';
 import React from 'react';
-import { Pressable, StyleProp, View, ViewStyle } from 'react-native';
+import { Pressable, StyleProp, View, ViewInstance, ViewStyle } from 'react-native';
 
 import { getFoundationConfig } from '../config';
 import { createStyles, useStyles } from '../helpers/styles';
@@ -20,7 +20,9 @@ interface MfCheckboxProps {
     testID?: string;
 }
 
-export const MfCheckbox = React.forwardRef<View, MfCheckboxProps>((props, _ref) => {
+export const MfCheckbox: React.ForwardRefExoticComponent<
+    MfCheckboxProps & React.RefAttributes<ViewInstance>
+> = React.forwardRef<ViewInstance, MfCheckboxProps>((props, _ref) => {
     const { value, disabled, icon, label, wrapperStyle, unstyled, onPress, children, testID } = props;
 
     const styles = useStyles(styleGen);

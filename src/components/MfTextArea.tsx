@@ -1,5 +1,5 @@
 import React from 'react';
-import { NativeSyntheticEvent, StyleProp, TextInput, TextInputProps, TextInputSubmitEditingEventData, ViewStyle } from 'react-native';
+import { StyleProp, TextInput, TextInputInstance, TextInputProps, TextInputSubmitEditingEvent, ViewStyle } from 'react-native';
 
 import { createStyles, useStyles } from '../helpers/styles';
 import { useNextTextInputRef } from '../hooks/useNextTextInputRef';
@@ -11,15 +11,17 @@ interface MfTextAreaProps {
     style?: StyleProp<ViewStyle>;
 }
 
-export const MfTextArea = React.forwardRef<TextInput, TextInputProps & MfTextAreaProps>((props, forwardedRef) => {
+export const MfTextArea: React.ForwardRefExoticComponent<
+    React.PropsWithoutRef<TextInputProps & MfTextAreaProps> & React.RefAttributes<TextInputInstance>
+> = React.forwardRef<TextInputInstance, TextInputProps & MfTextAreaProps>((props, forwardedRef) => {
     const localStyles = useStyles(styleGen);
-    const ref = React.createRef<TextInput>();
+    const ref = React.createRef<TextInputInstance>();
     const { ref: nextTextInputRef, focusNext } = useNextTextInputRef();
 
     const { placeholder, disabled, autoFocus, style, onFocus, onBlur, onChangeText, onSubmitEditing, returnKeyType, ...nativeProps } = props;
     const { value } = nativeProps;
 
-    const internalOnSubmitEditing = (e: NativeSyntheticEvent<TextInputSubmitEditingEventData>) => {
+    const internalOnSubmitEditing = (e: TextInputSubmitEditingEvent) => {
         if (onSubmitEditing) {
             onSubmitEditing(e);
         } else if (returnKeyType === 'next') {

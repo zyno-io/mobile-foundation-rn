@@ -63,9 +63,7 @@ const FoundationStatusBar: React.FC = () => {
                 : 'dark-content'
             : statusBarConfig.barStyle;
 
-    const backgroundColor = statusBarConfig.backgroundColorKey ? colors[statusBarConfig.backgroundColorKey] : undefined;
-
-    return <StatusBar barStyle={barStyle} backgroundColor={backgroundColor} />;
+    return <StatusBar barStyle={barStyle} />;
 };
 
 const DeepLinkingHandler: React.FC = () => {
