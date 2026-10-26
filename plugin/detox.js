@@ -110,6 +110,22 @@ const withDetoxAppBuildGradle = (config) =>
             offset: 1,
             newSrc: `            pickFirsts += ['**/libfbjni.so', '**/libc++_shared.so']`,
         });
+        // The separate test APK loads app classes that R8 would otherwise
+        // remove or rename, including AndroidX tracing and React Native internals.
+        contents = mergeGradleContents(contents, {
+            tag: "detox-release-proguard",
+            anchor: /^dependencies \{$/,
+            offset: 0,
+            newSrc: `android.buildTypes.release {
+    if (System.getProperty('testBuildType', 'debug') == 'release') {
+        def detoxPackageDirectory = ["node", "--print", "require('path').dirname(require.resolve('detox/package.json'))"].execute(null, rootDir).text.trim()
+        def foundationPackageDirectory = ["node", "--print", "require('path').dirname(require.resolve('${PACKAGE.name}/package.json'))"].execute(null, rootDir).text.trim()
+        proguardFile new File(detoxPackageDirectory, "android/detox/proguard-rules-app.pro")
+        proguardFile new File(foundationPackageDirectory, "plugin/detox-proguard-rules.pro")
+    }
+}
+`,
+        });
         contents = mergeGradleContents(contents, {
             tag: "detox-test-dependencies",
             anchor: /^dependencies \{$/,

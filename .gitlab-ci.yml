@@ -119,11 +119,18 @@ e2e:android:
         echo "Creating AVD: $DETOX_ANDROID_AVD"
         echo "no" | avdmanager create avd -n "$DETOX_ANDROID_AVD" -k "system-images;android-34;google_apis;x86_64" -d pixel_6 --force
       fi
-    # Boot emulator in background
+    - corepack enable
+    - yarn --immutable
+    - cd test-app
+    - yarn --immutable
+    - npx expo prebuild --clean --no-install --platform android
+    - npx detox build -c android.emu.release
+    - (cd android && ./gradlew --stop)
+    # Boot after compilation so Gradle and the emulator do not compete for memory.
     - |
-      emulator -avd "$DETOX_ANDROID_AVD" -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -partition-size 2048 &
+      emulator -avd "$DETOX_ANDROID_AVD" -no-window -no-audio -no-boot-anim -gpu swiftshader -feature -Vulkan -no-snapshot -partition-size 2048 &
       adb wait-for-device
-      echo "Device detected, waiting for boot (TCG mode — this may take a few minutes)..."
+      echo "Device detected, waiting for boot..."
       SECONDS=0
       while [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" != "1" ]; do
         if [ $SECONDS -ge 600 ]; then
@@ -133,19 +140,20 @@ e2e:android:
         sleep 5
       done
       echo "Boot completed in ${SECONDS}s"
-    # Disable animations and autofill for stable tests
+    # Stabilize animations and ensure keyboard tests use the software keyboard.
     - |
       adb shell settings put global window_animation_scale 0
       adb shell settings put global transition_animation_scale 0
       adb shell settings put global animator_duration_scale 0
       adb shell settings put secure autofill_service null
-    - corepack enable
-    - yarn --immutable
-    - cd test-app
-    - yarn --immutable
-    - npx expo prebuild --clean --no-install --platform android
-    - npx detox build -c android.emu.release
-    - npx detox test -c android.emu.release --headless --take-screenshots failing
+      adb shell settings put secure show_ime_with_hard_keyboard 1
+    - |
+      mkdir -p artifacts
+      adb logcat -b all -v threadtime > artifacts/emulator.log 2>&1 &
+      ANDROID_LOGCAT_PID=$!
+      trap 'kill "$ANDROID_LOGCAT_PID" 2>/dev/null || true' EXIT
+      npx detox test -c android.emu.release --headless --take-screenshots failing --record-logs all
+  after_script:
     - adb emu kill 2>/dev/null || true
   artifacts:
     when: always
