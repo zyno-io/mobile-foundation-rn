@@ -118,6 +118,9 @@ export async function setLargerText(enabled: boolean) {
         execSync(`xcrun simctl ui ${device.id} content_size ${size}`, { stdio: 'inherit' });
     } else {
         const scale = enabled ? '1.5' : '1.0';
+        // Changing Android configuration can recreate a running activity.
+        // Stop instrumentation first so that recreation cannot race the next launch.
+        await device.terminateApp();
         execSync(`adb -s ${device.id} shell settings put system font_scale ${scale}`, { stdio: 'inherit' });
     }
 }
