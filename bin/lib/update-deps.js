@@ -155,8 +155,17 @@ const globToRegExp = (glob) =>
 const isPreapproved = (pattern, preapproved) =>
     preapproved.some((p) => p === "*" || p === pattern || globToRegExp(p).test(pattern));
 
-// Reconciles the requested cooldowns with yarn's age gate (minutes; 0 when unset).
-const resolveCooldowns = ({ cooldown, trusted, gate }) => {
+const DEPENDENCY_FIELDS = ["dependencies", "devDependencies", "optionalDependencies"];
+
+// Every dependency name declared in a package.json object.
+const dependencyNames = (pkg) => [
+    ...new Set(DEPENDENCY_FIELDS.flatMap((field) => Object.keys(pkg?.[field] ?? {}))),
+];
+
+// Reconciles the requested cooldowns with yarn's age gate (minutes; 0 when unset). With
+// `packageNames`, a trusted pattern that isn't itself preapproved is split per package:
+// preapproved packages keep no cooldown and the rest get the gate.
+const resolveCooldowns = ({ cooldown, trusted, gate, packageNames }) => {
     const gateMinutes = gate?.minutes ?? 0;
     const preapproved = gate?.preapproved ?? [];
     const warnings = [];
@@ -170,14 +179,26 @@ const resolveCooldowns = ({ cooldown, trusted, gate }) => {
             );
         }
     }
-    const trustedCooldowns = trusted.map((pattern) => {
-        if (gateMinutes > 0 && !isPreapproved(pattern, preapproved)) {
-            warnings.push(
-                `trusted pattern ${pattern} is not in yarn's npmPreapprovedPackages, so yarn would reject releases younger than ${gateMinutes}m; its upgrade pass uses --cooldown ${gateMinutes}m (add the pattern to npmPreapprovedPackages in .yarnrc.yml for same-day upgrades)`,
-            );
-            return { pattern, cooldown: `${gateMinutes}m` };
+    const gated = (filter, label) => {
+        warnings.push(
+            `${label}: not in yarn's npmPreapprovedPackages, so yarn would reject releases younger than ${gateMinutes}m; upgrading with --cooldown ${gateMinutes}m (add it to npmPreapprovedPackages in .yarnrc.yml for same-day upgrades)`,
+        );
+        return { pattern: filter, cooldown: `${gateMinutes}m` };
+    };
+    const trustedCooldowns = trusted.flatMap((pattern) => {
+        if (gateMinutes === 0 || isPreapproved(pattern, preapproved)) {
+            return [{ pattern, cooldown: null }];
         }
-        return { pattern, cooldown: null };
+        if (!packageNames) {
+            return [gated(pattern, `trusted pattern ${pattern}`)];
+        }
+        const matched = packageNames.filter((name) => globToRegExp(pattern).test(name));
+        const covered = matched.filter((name) => isPreapproved(name, preapproved));
+        const uncovered = matched.filter((name) => !covered.includes(name));
+        return [
+            ...(covered.length ? [{ pattern: covered.join(","), cooldown: null }] : []),
+            ...(uncovered.length ? [gated(uncovered.join(","), `${uncovered.join(", ")} (trusted ${pattern})`)] : []),
+        ];
     });
     return { main, trusted: trustedCooldowns, warnings };
 };
@@ -194,10 +215,11 @@ const buildUpdateDepsPlan = ({
     trusted = [DEFAULT_TRUSTED],
     reject = [],
     gate,
+    packageNames,
 }) => {
     const rejectArgs = reject.length ? ["--reject", reject.join(",")] : [];
     const ncu = (...args) => [ncuCli, "-u", ...args, ...rejectArgs];
-    const cooldowns = resolveCooldowns({ cooldown, trusted, gate });
+    const cooldowns = resolveCooldowns({ cooldown, trusted, gate, packageNames });
     const steps = [];
     steps.push({ type: "backup" });
     steps.push({ type: "cmd", cmd: process.execPath, args: ncu("--cooldown", cooldowns.main) });
@@ -425,7 +447,7 @@ const executeUpdateDeps = async ({ projectRoot, pm, planInput, options, runner, 
     let exitCode = 0;
 
     const gate = pm.name === "yarn" ? await preflight({ projectRoot, runner }) : undefined;
-    const plan = buildUpdateDepsPlan({ ...planInput, pm, gate });
+    const plan = buildUpdateDepsPlan({ ...planInput, pm, gate, packageNames: dependencyNames(before) });
     for (const warning of plan.warnings) {
         log(`warning: ${warning}`);
     }
@@ -581,6 +603,7 @@ module.exports = {
     executeUpdateDeps,
     formatCommand,
     isPreapproved,
+    dependencyNames,
     parseAuthScopes,
     parseMajor,
     parsePatchName,

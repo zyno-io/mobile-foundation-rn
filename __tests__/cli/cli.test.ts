@@ -217,6 +217,41 @@ describe('update-deps', () => {
             expect(steps.warnings.join('\n')).toContain('npmPreapprovedPackages');
         });
 
+        it('splits a trusted pattern per package when only some packages are preapproved', () => {
+            const steps = plan({
+                trusted: ['@acme*'],
+                gate: { minutes: 1440, preapproved: ['@acme-io/*', '@acme-platform/*'] },
+                packageNames: ['@acme-io/core', '@acme-platform/ui', '@acme-labs/x', 'react'],
+            });
+            const node = process.execPath;
+            expect(cmdsOf(steps).slice(1, 3)).toEqual([
+                [node, '/f/ncu.js', '-u', '@acme-io/core,@acme-platform/ui'],
+                [node, '/f/ncu.js', '-u', '@acme-labs/x', '--cooldown', '1440m'],
+            ]);
+            expect(steps.warnings).toEqual([expect.stringContaining('@acme-labs/x (trusted @acme*)')]);
+        });
+
+        it('runs a fully preapproved trusted pattern by package with no cooldown and no warning', () => {
+            const steps = plan({
+                trusted: ['@acme*'],
+                gate: { minutes: 1440, preapproved: ['@acme-io/*'] },
+                packageNames: ['@acme-io/core', 'react'],
+            });
+            expect(cmdsOf(steps)[1]).toEqual([process.execPath, '/f/ncu.js', '-u', '@acme-io/core']);
+            expect(steps.warnings).toEqual([]);
+        });
+
+        it('skips the trusted pass when no dependency matches', () => {
+            const steps = plan({ trusted: ['@acme*'], gate: { minutes: 1440, preapproved: [] }, packageNames: ['react'] });
+            expect(cmdsOf(steps).filter((c: string[]) => c.includes('@acme*'))).toEqual([]);
+        });
+
+        it('collects dependency names across dependency fields', () => {
+            expect(
+                updateDeps.dependencyNames({ dependencies: { a: '1' }, devDependencies: { b: '1', a: '1' }, optionalDependencies: { c: '1' } }),
+            ).toEqual(['a', 'b', 'c']);
+        });
+
         it('leaves cooldowns alone without a gate or with a longer main cooldown', () => {
             expect(plan({ gate: { minutes: 0, preapproved: [] } }).warnings).toEqual([]);
             const steps = plan({ cooldown: '3d', trusted: ['@free*'], gate: { minutes: 1440, preapproved: ['@free*'] } });
@@ -225,7 +260,7 @@ describe('update-deps', () => {
         });
 
         it('reads the gate and preapproved list from yarn in the preflight', async () => {
-            const dir = mkProject({ 'yarn.lock': 'lock' });
+            const dir = mkProject({ 'yarn.lock': 'lock', 'package.json': '{"name":"app","dependencies":{"@acme/core":"1.0.0"}}' });
             const answers: Record<string, string> = {
                 nodeLinker: '"node-modules"',
                 npmScopes: '{}',
@@ -241,8 +276,8 @@ describe('update-deps', () => {
                 options: {}, runner: { dryRun: false, log, run }, proc: new EventEmitter(),
             });
             const ncu = run.mock.calls.filter((c: any[]) => c[0] === process.execPath).map((c: any[]) => c[1]);
-            expect(ncu[1]).toEqual(['/f/ncu.js', '-u', '@acme*', '--cooldown', '1440m']);
-            expect(log.mock.calls.map((c: any[]) => c[0]).join('\n')).toContain('warning: trusted pattern @acme*');
+            expect(ncu[1]).toEqual(['/f/ncu.js', '-u', '@acme/core', '--cooldown', '1440m']);
+            expect(log.mock.calls.map((c: any[]) => c[0]).join('\n')).toContain('warning: @acme/core (trusted @acme*)');
         });
     });
 

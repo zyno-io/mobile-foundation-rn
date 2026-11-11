@@ -80,10 +80,12 @@ Steps:
    - Reads yarn's `npmMinimalAgeGate` (yarn 4 defaults to 1440 minutes) and
      `npmPreapprovedPackages`. Yarn refuses to install a release younger than
      the gate, which would defeat a no-cooldown pass. So a `--cooldown` shorter
-     than the gate is raised to it, and each trusted pattern that is not covered
-     by `npmPreapprovedPackages` runs with the gate as its cooldown; both cases
-     print a warning. For same-day upgrades of trusted packages, add the scope
-     (for example `@zyno-io/*`) to `npmPreapprovedPackages` in `.yarnrc.yml`.
+     than the gate is raised to it. A trusted pattern is matched against the
+     app's declared dependencies: packages covered by `npmPreapprovedPackages`
+     upgrade with no cooldown, and the rest use the gate as their cooldown.
+     Both adjustments print a warning. For same-day upgrades of trusted
+     packages, add their scope (for example `@zyno-io/*`) to
+     `npmPreapprovedPackages` in `.yarnrc.yml`.
 2. Backs up `package.json` and the lockfile to a temp directory (the path is
    printed).
 3. Runs npm-check-updates with the cooldown, then once per trusted pattern
