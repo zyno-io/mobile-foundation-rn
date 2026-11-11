@@ -9,6 +9,10 @@ const {
     withAndroidBuildProperties,
 } = require("./android-build-properties");
 const { withDetox } = require("./detox");
+const { withFastlane } = require("./fastlane");
+const { withReleaseSigning } = require("./release-signing");
+const { withSentryAutoUpload } = require("./sentry");
+const { isPlainObject } = require("./utils");
 
 const ANDROID_NAMESPACE_PATTERN =
     /^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)+$/;
@@ -85,15 +89,75 @@ const withAndroidAppName = (config, androidAppName) => {
     });
 };
 
+// Applied beneath the user's gradleProperties in the combined plugin only.
+const FOUNDATION_GRADLE_PROPERTY_DEFAULTS = {
+    "android.enableMinifyInReleaseBuilds": false,
+};
+
+// expo-build-properties writes the same gradle property. When the app configures minify there,
+// a foundation default could override it (depending on plugin order) and, combined with
+// shrinkResources, break release builds, so the app's expo-build-properties setting wins.
+const EXPO_BUILD_PROPERTIES_MINIFY_KEYS = [
+    "enableMinifyInReleaseBuilds",
+    "enableProguardInReleaseBuilds",
+];
+
+const configuresMinifyViaExpoBuildProperties = (config) =>
+    (config.plugins ?? []).some((entry) => {
+        if (!Array.isArray(entry) || entry[0] !== "expo-build-properties") {
+            return false;
+        }
+        const android = entry[1]?.android;
+        return (
+            isPlainObject(android) &&
+            EXPO_BUILD_PROPERTIES_MINIFY_KEYS.some(
+                (key) => android[key] !== undefined,
+            )
+        );
+    });
+
+const getFoundationGradlePropertyDefaults = (config) =>
+    configuresMinifyViaExpoBuildProperties(config)
+        ? {}
+        : { ...FOUNDATION_GRADLE_PROPERTY_DEFAULTS };
+
+const withFoundationBuildProperties = (config, androidBuildProperties) => {
+    if (
+        androidBuildProperties !== undefined &&
+        !isPlainObject(androidBuildProperties)
+    ) {
+        // Let the build-properties plugin raise its own error.
+        return withAndroidBuildProperties(config, androidBuildProperties);
+    }
+
+    const defaults = getFoundationGradlePropertyDefaults(config);
+    const abp = androidBuildProperties ?? {};
+    const gp = abp.gradleProperties;
+    return withAndroidBuildProperties(config, {
+        ...abp,
+        gradleProperties:
+            gp === undefined
+                ? defaults
+                : isPlainObject(gp)
+                  ? { ...defaults, ...gp }
+                  : gp,
+    });
+};
+
 const withMobileFoundation = (config, options = {}) => {
     const {
         androidAppName,
         androidBuildProperties,
         androidNamespace,
         detox,
+        disableSentryAutoUpload = true,
+        fastlane,
+        releaseSigning,
     } = options;
 
-    // Keep the plugin safe when Expo adds it automatically without options.
+    // Safe when Expo adds the plugin automatically without options: defaults apply
+    // (R8 off, Sentry auto-upload off, fastlane, automatic release signing) and a
+    // bare entry never throws except on Expo template drift.
     if (androidNamespace !== undefined) {
         config = withAndroidNamespace(config, androidNamespace);
     }
@@ -102,9 +166,7 @@ const withMobileFoundation = (config, options = {}) => {
         config = withAndroidAppName(config, androidAppName);
     }
 
-    if (androidBuildProperties !== undefined) {
-        config = withAndroidBuildProperties(config, androidBuildProperties);
-    }
+    config = withFoundationBuildProperties(config, androidBuildProperties);
 
     if (detox !== undefined && detox !== false) {
         const detoxOptions = detox === true ? {} : detox;
@@ -125,6 +187,10 @@ const withMobileFoundation = (config, options = {}) => {
         });
     }
 
+    config = withReleaseSigning(config, releaseSigning);
+    config = withSentryAutoUpload(config, disableSentryAutoUpload);
+    config = withFastlane(config, fastlane);
+
     return config;
 };
 
@@ -133,4 +199,9 @@ module.exports.withAndroidAppName = withAndroidAppName;
 module.exports.withAndroidBuildProperties = withAndroidBuildProperties;
 module.exports.withAndroidNamespace = withAndroidNamespace;
 module.exports.withDetox = withDetox;
+module.exports.withFastlane = withFastlane;
+module.exports.withReleaseSigning = withReleaseSigning;
+module.exports.withSentryAutoUpload = withSentryAutoUpload;
+module.exports.FOUNDATION_GRADLE_PROPERTY_DEFAULTS =
+    FOUNDATION_GRADLE_PROPERTY_DEFAULTS;
 module.exports.withMobileFoundation = withMobileFoundation;

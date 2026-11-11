@@ -18,6 +18,7 @@ export default defineConfig({
                     { text: 'Getting Started', link: '/guide/getting-started' },
                     { text: 'Configuration', link: '/guide/configuration' },
                     { text: 'Expo Config Plugins', link: '/guide/config-plugins' },
+                    { text: 'CLI (mfrn)', link: '/guide/cli' },
                     { text: 'Theming', link: '/guide/theming' },
                     { text: 'Keyboard Avoidance', link: '/guide/keyboard-avoidance' },
                     { text: 'Form Navigation', link: '/guide/form-navigation' },

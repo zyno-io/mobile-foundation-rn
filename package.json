@@ -46,6 +46,7 @@
         "@types/events": "3.0.3",
         "@types/pako": "^3.0.0",
         "events": "3.3.0",
+        "npm-check-updates": "^19.6.6",
         "pako": "3.0.2"
     },
     "devDependencies": {
@@ -88,8 +89,12 @@
         "typescript": "~6.0.3",
         "vitepress": "^1.6.4"
     },
+    "bin": {
+        "mfrn": "bin/mfrn.js"
+    },
     "files": [
         "app.plugin.js",
+        "bin",
         "expo-module.config.json",
         "ios",
         "plugin",

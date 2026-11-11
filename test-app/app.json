@@ -35,7 +35,8 @@
         {
           "androidBuildProperties": {
             "gradleProperties": {
-              "org.gradle.jvmargs": "-Xmx2048m -XX:MaxMetaspaceSize=1024m"
+              "org.gradle.jvmargs": "-Xmx2048m -XX:MaxMetaspaceSize=1024m",
+              "android.enableMinifyInReleaseBuilds": true
             },
             "gradleWrapperProperties": {
               "networkTimeout": 60000

@@ -1,0 +1,84 @@
+{{HEADER}}
+
+XCODE_PROJECT = {{XCODE_PROJECT}}
+EXTENSION_TARGETS = {{EXTENSION_TARGETS}}.freeze
+
+setup_ci if ENV["CI"]
+
+desc "Update app metadata"
+lane :update_metadata do |options|
+  update_app_identifier(
+    plist_path: "#{XCODE_PROJECT}/Info.plist",
+    app_identifier: options[:app_identifier]
+  )
+
+  update_info_plist(
+    plist_path: "#{XCODE_PROJECT}/Info.plist",
+    display_name: options[:display_name]
+  )
+
+  increment_build_number(build_number: options[:build_number])
+  increment_version_number(version_number: options[:version_number])
+end
+
+desc "Prepare provisioning"
+lane :prepare_provisioning do |options|
+  match_type = val_or_nil(options[:profile_type]) || "appstore"
+  code_sign_identity = match_type == "development" ? "iPhone Developer" : "iPhone Distribution"
+  bundle_identifier = val_or_nil(ENV["BUNDLE_IDENTIFIER_IOS"]) || CredentialsManager::AppfileConfig.try_fetch_value(:app_identifier)
+  targets = { XCODE_PROJECT => bundle_identifier }
+  EXTENSION_TARGETS.each { |target| targets[target] = "#{bundle_identifier}.#{target}" }
+
+  sync_code_signing(
+    shallow_clone: true,
+    type: match_type,
+    git_url: options[:git_url],
+    api_key_path: options[:api_key_path],
+    app_identifier: targets.values
+  )
+
+  targets.each do |target, app_identifier|
+    update_project_provisioning(
+      xcodeproj: "#{XCODE_PROJECT}.xcodeproj",
+      target_filter: "^#{Regexp.escape(target)}$",
+      profile: ENV["sigh_#{app_identifier}_#{match_type}_profile-path"]
+    )
+  end
+
+  update_code_signing_settings(
+    path: "#{XCODE_PROJECT}.xcodeproj",
+    team_id: CredentialsManager::AppfileConfig.try_fetch_value(:team_id),
+    code_sign_identity: code_sign_identity
+  )
+end
+
+desc "Build app"
+lane :build do |options|
+  export_method = val_or_nil(options[:export_method]) || "app-store"
+  skip_package_ipa = options[:skip_package_ipa] ? true : false
+
+  cocoapods(
+    podfile: "./Podfile",
+    try_repo_update_on_error: true
+  )
+
+  build_app(
+    workspace: "./#{XCODE_PROJECT}.xcworkspace",
+    clean: true,
+    scheme: XCODE_PROJECT,
+    configuration: "Release",
+    destination: "generic/platform=iOS",
+    output_directory: "build/out",
+    archive_path: "build/archive",
+    build_path: "build/build",
+    export_method: export_method,
+    skip_package_ipa: skip_package_ipa,
+    include_symbols: true,
+    derived_data_path: File.expand_path("../build/derived-data")
+  )
+end
+
+def val_or_nil(v)
+  v && !v.empty? ? v : nil
+end
+{{APPENDED_LANES}}

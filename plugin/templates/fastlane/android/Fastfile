@@ -1,0 +1,11 @@
+{{HEADER}}
+
+default_platform(:android)
+
+platform :android do
+  desc "Upload to Google Play"
+  lane :deploy do
+    upload_to_play_store
+  end
+end
+{{APPENDED_LANES}}

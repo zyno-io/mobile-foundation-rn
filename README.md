@@ -28,7 +28,8 @@ Your app must install these packages:
 ## Expo Config Plugins
 
 The package includes reusable Expo config plugins for Android identity, raw
-Gradle settings, and Detox native setup. They require Expo SDK 58 or newer and
+Gradle settings, Detox native setup, Android release signing, fastlane files,
+and Sentry automatic-upload defaults. They require Expo SDK 58 or newer and
 run during `expo prebuild`, so generated native files do not need to be
 committed or patched in CI. Expo handles the iOS scene life cycle automatically.
 
@@ -93,7 +94,8 @@ Gradle wrapper settings. The foundation plugin can set both:
 
 Both maps accept any property name and any string, number, or boolean value.
 Existing generated properties are replaced in place; missing properties are
-appended. For a project that only needs this capability, use the standalone
+appended. The combined plugin defaults `android.enableMinifyInReleaseBuilds` to
+`false`; set it to `true` in `gradleProperties` to opt in to R8. For a project that only needs this capability, use the standalone
 entry point:
 
 ```json
@@ -109,6 +111,46 @@ entry point:
     }
 ]
 ```
+
+### Release signing, fastlane and Sentry defaults
+
+The combined plugin applies these defaults even without options:
+
+- `releaseSigning`: automatic; enabled only when
+  `resources/native/android/signer.jks` exists. Use `true` or an options object
+  (`keystorePath`, `keyAlias`, `passwordEnv`, `debugKeystoreFallback`) for
+  explicit mode, or `false` to turn it off.
+- `disableSentryAutoUpload`: `true`. Set `SENTRY_DISABLE_AUTO_UPLOAD=false` at
+  build time to re-enable uploads.
+- `fastlane`: generated into `ios/fastlane/` and `android/fastlane/`. Options
+  live under `fastlane.ios` (`appleTeamId`, `bundleIdentifier`,
+  `extensionTargets`, `matchGitUrl`, `matchAppIdentifiers`, `sourceDir`) and
+  `fastlane.android` (`packageName`, `sourceDir`).
+
+```json
+{
+    "expo": {
+        "plugins": [
+            [
+                "@zyno-io/mobile-foundation-rn",
+                {
+                    "releaseSigning": true,
+                    "fastlane": {
+                        "ios": {
+                            "matchGitUrl": "git@git.example.com:team/fastlane-certs.git",
+                            "matchAppIdentifiers": {
+                                "appstore": ["app.example"]
+                            }
+                        }
+                    }
+                }
+            ]
+        ]
+    }
+}
+```
+
+See the [config plugins guide](docs/guide/config-plugins.md) for details.
 
 ### Detox Android Setup
 
@@ -174,6 +216,30 @@ For the combined `@zyno-io/mobile-foundation-rn` entry point, set `detox` to
 `true` for the defaults or to the options object shown above. The standalone
 build-properties and Detox entry points can be used independently by any Expo
 project without enabling the rest of the foundation config plugin.
+
+## CLI
+
+The `mfrn` command handles app chores next to the plugins. It needs `yarn` or
+`npm` (update-deps), `bundle` with fastlane in the app's Gemfile (update-match)
+and `keytool` from a JDK (generate-android-keystore). `npm-check-updates` is
+bundled. Every command supports `--dry-run` and `--cwd <dir>`.
+
+- `mfrn update-deps`: checks registry auth, upgrades dependencies (with a
+  release cooldown, no cooldown for `--trusted` patterns, default `@zyno*`),
+  reinstalls, runs `expo install --fix`, checks and renames patches, and
+  summarizes major bumps. A failure or SIGINT/SIGTERM/SIGHUP before the patch
+  check restores `package.json` and the lockfile; a `patch-package` failure
+  does not (dependencies stay installed) and exits non-zero.
+- `mfrn update-match [types...]`: runs `fastlane match` for the identifiers in
+  `fastlane.ios.matchAppIdentifiers`. Replaces the generated `update-match.sh`.
+- `mfrn generate-android-keystore`: creates the upload keystore that
+  `releaseSigning` expects and prints its SHA-1/SHA-256 fingerprints.
+
+```json
+{ "scripts": { "deps:upgrade": "mfrn update-deps" } }
+```
+
+See the [CLI guide](docs/guide/cli.md).
 
 ## Quick Start
 

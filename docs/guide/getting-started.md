@@ -30,6 +30,10 @@ Be sure to then sync the package versions with those required by the version of 
 npx expo install --fix
 ```
 
+The package also ships Expo [config plugins](/guide/config-plugins) for native
+setup during `expo prebuild`, and the [`mfrn` CLI](/guide/cli) for dependency
+upgrades, fastlane match profiles and the Android upload keystore.
+
 ## Quick Setup
 
 ### 1. Create your app storage

@@ -1,0 +1,7 @@
+{{HEADER}}
+
+{{GIT_URL}}
+storage_mode("git")
+type("development") # Default type: appstore, adhoc, enterprise or development
+
+app_identifier(ENV["BUNDLE_IDENTIFIER_IOS"] || {{BUNDLE_IDENTIFIER}})
