@@ -1,4 +1,6 @@
 #!/usr/bin/env node
 const { main } = require("./lib/cli");
 
-process.exitCode = main(process.argv.slice(2));
+main(process.argv.slice(2)).then((code) => {
+    process.exitCode = code;
+});

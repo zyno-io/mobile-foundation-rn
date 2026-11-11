@@ -172,8 +172,9 @@ Values come from options, falling back to the Expo config:
   bundle-ID suffix.
 - `matchGitUrl` has no default. Without it the Matchfile omits `git_url`. CI is
   unaffected because it passes `git_url` to `prepare_provisioning`; local
-  `match` runs (including `mfrn update-match`) then need `git_url:` or
-  `MATCH_GIT_URL`. Set `matchGitUrl` to make local runs work out of the box.
+  `match` runs then need the repository from somewhere else (`git_url:`,
+  `MATCH_GIT_URL`). `mfrn update-match` only warns when none is found. Set
+  `matchGitUrl` to make local runs work out of the box.
 - `matchAppIdentifiers` maps each profile type (`development`, `adhoc`,
   `appstore`, `enterprise`) to bundle IDs. It no longer renders a file; it is
   the input of `mfrn update-match`, which expands `extensionTargets` for you.

@@ -4,7 +4,7 @@ const path = require("node:path");
 const {
     MATCH_PROFILE_TYPES,
     normalizeFastlaneOptions,
-} = require("../../plugin/fastlane");
+} = require("../../plugin/fastlane-options");
 const { loadProjectConfig } = require("./config");
 const { CliError, toRelative } = require("./util");
 
@@ -24,13 +24,39 @@ Options:
   --cwd <dir>  App root (default: current directory)
 
 Arguments after -- are passed to fastlane. Set FASTLANE_USER to your Apple ID,
-and matchGitUrl (or MATCH_GIT_URL) to the match certificates repository.`;
+and matchGitUrl (or MATCH_GIT_URL, a Matchfile git_url, or --git_url after --)
+to the match certificates repository.`;
 
 // Expands each identifier with the configured extension targets (id, id.Target, ...).
 const expandIdentifiers = (ids, extensionTargets = []) =>
     ids.flatMap((id) => [id, ...extensionTargets.map((t) => `${id}.${t}`)]);
 
-// Pure: builds the match commands from normalized-or-raw plugin options.
+// True when fastlane will find the match repository some other way: a git_url passed
+// through, a Matchfile git_url, or MATCH_GIT_URL in a fastlane .env file.
+const hasGitUrlSource = ({ passthrough, fastlaneDir }) => {
+    if (passthrough.some((a) => a === "--git_url" || a.startsWith("--git_url=") || a.startsWith("git_url:"))) {
+        return true;
+    }
+    const read = (file) => {
+        try {
+            return fs.readFileSync(path.join(fastlaneDir, file), "utf8");
+        } catch {
+            return "";
+        }
+    };
+    if (/^\s*git_url[\s(]/m.test(read("Matchfile"))) {
+        return true;
+    }
+    let names = [];
+    try {
+        names = fs.readdirSync(fastlaneDir).filter((n) => n.startsWith(".env"));
+    } catch {
+        // no fastlane directory
+    }
+    return names.some((n) => /^\s*(?:export\s+)?MATCH_GIT_URL\s*=/m.test(read(n)));
+};
+
+// Pure (reads only fastlane config files): builds the match commands from normalized-or-raw plugin options.
 const buildUpdateMatchPlan = ({
     exp,
     pluginOptions,
@@ -75,11 +101,6 @@ const buildUpdateMatchPlan = ({
         ? configured.filter((type) => types.includes(type))
         : configured;
 
-    if (!ios.matchGitUrl && !env.MATCH_GIT_URL) {
-        throw new CliError(
-            "no match git URL: set fastlane.ios.matchGitUrl in the plugin options or the MATCH_GIT_URL environment variable",
-        );
-    }
     const teamId = ios.appleTeamId ?? exp?.ios?.appleTeamId;
 
     const cwd = fs.existsSync(path.join(projectRoot, "ios"))
@@ -87,6 +108,15 @@ const buildUpdateMatchPlan = ({
         : projectRoot;
 
     const warnings = [];
+    if (
+        !ios.matchGitUrl &&
+        !env.MATCH_GIT_URL &&
+        !hasGitUrlSource({ passthrough, fastlaneDir: path.join(cwd, "fastlane") })
+    ) {
+        warnings.push(
+            "no match git URL found (fastlane.ios.matchGitUrl, MATCH_GIT_URL, a Matchfile git_url or --git_url); fastlane will prompt or fail",
+        );
+    }
     if (!env.FASTLANE_USER) {
         warnings.push("FASTLANE_USER is not set; fastlane will prompt for your Apple ID");
     }
@@ -112,7 +142,7 @@ const buildUpdateMatchPlan = ({
     };
 };
 
-const run = ({ values, positionals, passthrough, projectRoot, runner, env, loadConfig = loadProjectConfig }) => {
+const run = async ({ values, positionals, passthrough, projectRoot, runner, env, loadConfig = loadProjectConfig }) => {
     const { exp, pluginOptions } = loadConfig(projectRoot);
     const plan = buildUpdateMatchPlan({
         exp,
@@ -128,7 +158,7 @@ const run = ({ values, positionals, passthrough, projectRoot, runner, env, loadC
     }
     runner.log(`Running in ${toRelative(projectRoot, plan.cwd)}`);
     for (const { cmd, args } of plan.commands) {
-        runner.run(cmd, args, { cwd: plan.cwd });
+        await runner.run(cmd, args, { cwd: plan.cwd });
     }
 };
 
@@ -142,4 +172,5 @@ module.exports = {
     run,
     buildUpdateMatchPlan,
     expandIdentifiers,
+    hasGitUrlSource,
 };

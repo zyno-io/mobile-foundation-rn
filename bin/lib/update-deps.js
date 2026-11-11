@@ -3,8 +3,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { CliError, formatCommand, resolveBin } = require("./util");
+const { CliError, formatCommand, resolveBin, withSignalGuard } = require("./util");
+
 const DEP_FIELDS = ["dependencies", "devDependencies", "optionalDependencies"];
+const DEFAULT_TRUSTED = "@zyno*";
 
 const OPTIONS = {
     cooldown: { type: "string", default: "3d" },
@@ -17,19 +19,24 @@ const USAGE = `Usage: mfrn update-deps [options]
 
 Upgrade dependencies, reinstall, fix Expo versions and check patches.
 
-Steps: preflight registry auth (yarn) -> back up package.json and lockfile ->
-npm-check-updates (cooldown, then trusted patterns without it) -> recreate the
-lockfile and install -> expo install --fix -> install -> patch-package check ->
-summary of major changes. Failures before the patch check restore the backups.
+Steps: preflight (yarn: node-modules linker, registry auth, age gate) -> back up
+package.json and the lockfile -> npm-check-updates (cooldown, then trusted
+patterns without it) -> recreate the lockfile and install -> expo install --fix
+-> install -> patch-package check -> summary of major changes. A failure or a
+SIGINT/SIGTERM/SIGHUP before the patch check restores the backups.
 
 Options:
   --cooldown <d>      Minimum release age for upgrades (default: 3d)
   --trusted <glob>    Package pattern upgraded with no cooldown (repeatable,
-                      default: @zyno*)
+                      default: ${DEFAULT_TRUSTED})
   --reject <pattern>  Package pattern to leave alone (repeatable)
   --no-rename-patches Do not rename patches to the installed version
   --dry-run           Print the commands and planned changes only
-  --cwd <dir>         App root (default: current directory)`;
+  --cwd <dir>         App root (default: current directory)
+
+Yarn's npmMinimalAgeGate applies to installs. Trusted patterns not listed in
+npmPreapprovedPackages (.yarnrc.yml) get the gate as their cooldown instead of
+none.`;
 
 const readJson = (file) => JSON.parse(fs.readFileSync(file, "utf8"));
 
@@ -56,6 +63,7 @@ const detectPackageManager = (projectRoot, pkg) => {
         if (classic) {
             throw new CliError("yarn classic (v1) is not supported; use yarn berry (2+) or npm");
         }
+        assertNodeModulesLinker(projectRoot);
         return { name: "yarn", lockfile: "yarn.lock", install: ["yarn"] };
     }
     if (name === "npm") {
@@ -68,24 +76,54 @@ const detectPackageManager = (projectRoot, pkg) => {
     );
 };
 
-// Parses `yarn config get npmScopes --json` into the scopes that always require auth.
-const parseAuthScopes = (stdout) => {
-    let data;
-    const text = stdout.trim();
+const PNP_MESSAGE =
+    "Yarn Plug'n'Play is not supported (patches and Expo read node_modules); set `nodeLinker: node-modules` in .yarnrc.yml";
+
+// Static PnP detection; the yarn preflight also asks `yarn config get nodeLinker`.
+const assertNodeModulesLinker = (projectRoot) => {
+    const has = (name) => fs.existsSync(path.join(projectRoot, name));
+    if (has(".pnp.cjs") || has(".pnp.js")) {
+        throw new CliError(PNP_MESSAGE);
+    }
     try {
-        data = JSON.parse(text);
-    } catch {
-        const start = text.indexOf("{");
-        const end = text.lastIndexOf("}");
-        if (start === -1 || end <= start) {
-            return [];
+        const rc = fs.readFileSync(path.join(projectRoot, ".yarnrc.yml"), "utf8");
+        const match = /^nodeLinker:\s*["']?([\w-]+)/m.exec(rc);
+        if (match && match[1] !== "node-modules") {
+            throw new CliError(PNP_MESSAGE);
         }
+    } catch (error) {
+        if (error instanceof CliError) throw error;
+    }
+};
+
+// `yarn config get <name> --json` output: parsed JSON or undefined.
+const parseYarnJson = (stdout) => {
+    const text = String(stdout ?? "").trim();
+    if (!text) return undefined;
+    try {
+        return JSON.parse(text);
+    } catch {
+        // Noise before the value (warnings): take the last line that parses, else the
+        // first object or array.
+        for (const line of text.split("\n").reverse()) {
+            try {
+                return JSON.parse(line);
+            } catch {
+                // keep looking
+            }
+        }
+        const start = text.search(/[{[]/);
         try {
-            data = JSON.parse(text.slice(start, end + 1));
+            return start === -1 ? undefined : JSON.parse(text.slice(start));
         } catch {
-            return [];
+            return undefined;
         }
     }
+};
+
+// Parses `yarn config get npmScopes --json` into the scopes that always require auth.
+const parseAuthScopes = (stdout) => {
+    const data = parseYarnJson(stdout);
     if (data === null || typeof data !== "object" || Array.isArray(data)) {
         return [];
     }
@@ -97,6 +135,53 @@ const parseAuthScopes = (stdout) => {
         }));
 };
 
+const UNIT_MINUTES = { ms: 1 / 60000, s: 1 / 60, m: 1, h: 60, d: 1440, w: 10080 };
+
+// "3d", "12h", "30m", "1w" or a bare number in `bareUnit` -> minutes (null when unknown).
+const toMinutes = (value, bareUnit) => {
+    if (typeof value === "number") {
+        return Number.isFinite(value) ? value * UNIT_MINUTES[bareUnit] : null;
+    }
+    const match = /^\s*(\d+(?:\.\d+)?)\s*(ms|s|m|h|d|w)?\s*$/.exec(String(value ?? ""));
+    if (!match) return null;
+    return Number(match[1]) * UNIT_MINUTES[match[2] ?? bareUnit];
+};
+
+const globToRegExp = (glob) =>
+    new RegExp("^" + glob.split("*").map((p) => p.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*") + "$");
+
+// Whether a trusted pattern is covered by yarn's npmPreapprovedPackages (identical, `*`,
+// or a preapproved glob matching the pattern text).
+const isPreapproved = (pattern, preapproved) =>
+    preapproved.some((p) => p === "*" || p === pattern || globToRegExp(p).test(pattern));
+
+// Reconciles the requested cooldowns with yarn's age gate (minutes; 0 when unset).
+const resolveCooldowns = ({ cooldown, trusted, gate }) => {
+    const gateMinutes = gate?.minutes ?? 0;
+    const preapproved = gate?.preapproved ?? [];
+    const warnings = [];
+    let main = cooldown;
+    if (gateMinutes > 0) {
+        const requested = toMinutes(cooldown, "d");
+        if (requested !== null && requested < gateMinutes) {
+            main = `${gateMinutes}m`;
+            warnings.push(
+                `--cooldown ${cooldown} is shorter than yarn's npmMinimalAgeGate (${gateMinutes}m); using ${main}`,
+            );
+        }
+    }
+    const trustedCooldowns = trusted.map((pattern) => {
+        if (gateMinutes > 0 && !isPreapproved(pattern, preapproved)) {
+            warnings.push(
+                `trusted pattern ${pattern} is not in yarn's npmPreapprovedPackages, so yarn would reject releases younger than ${gateMinutes}m; its upgrade pass uses --cooldown ${gateMinutes}m (add the pattern to npmPreapprovedPackages in .yarnrc.yml for same-day upgrades)`,
+            );
+            return { pattern, cooldown: `${gateMinutes}m` };
+        }
+        return { pattern, cooldown: null };
+    });
+    return { main, trusted: trustedCooldowns, warnings };
+};
+
 // Pure: the ordered steps. Commands are `cmd` steps; the rest are file operations.
 const buildUpdateDepsPlan = ({
     pm,
@@ -106,19 +191,22 @@ const buildUpdateDepsPlan = ({
     hasExpo,
     hasPatches,
     cooldown = "3d",
-    trusted = ["@zyno*"],
+    trusted = [DEFAULT_TRUSTED],
     reject = [],
+    gate,
 }) => {
     const rejectArgs = reject.length ? ["--reject", reject.join(",")] : [];
     const ncu = (...args) => [ncuCli, "-u", ...args, ...rejectArgs];
+    const cooldowns = resolveCooldowns({ cooldown, trusted, gate });
     const steps = [];
-    if (pm.name === "yarn") {
-        steps.push({ type: "preflight" });
-    }
     steps.push({ type: "backup" });
-    steps.push({ type: "cmd", cmd: process.execPath, args: ncu("--cooldown", cooldown) });
-    for (const pattern of trusted) {
-        steps.push({ type: "cmd", cmd: process.execPath, args: ncu(pattern) });
+    steps.push({ type: "cmd", cmd: process.execPath, args: ncu("--cooldown", cooldowns.main) });
+    for (const { pattern, cooldown: own } of cooldowns.trusted) {
+        steps.push({
+            type: "cmd",
+            cmd: process.execPath,
+            args: ncu(pattern, ...(own ? ["--cooldown", own] : [])),
+        });
     }
     steps.push({ type: "remove-lockfile" });
     if (pm.name === "yarn") {
@@ -137,16 +225,22 @@ const buildUpdateDepsPlan = ({
         });
     }
     steps.push({ type: "summary" });
+    steps.warnings = cooldowns.warnings;
     return steps;
 };
 
-// patch-package names: name+version.patch, @scope+name+version.patch, an optional
-// +NNN+suffix sequence tail, and `++` for nested packages (not supported here).
+// patch-package names: name+version.patch, @scope+name+version.patch, name+version.dev.patch,
+// an optional +NNN+suffix sequence tail, and `++` for nested packages (not supported here).
 const parsePatchName = (file) => {
     if (!file.endsWith(".patch")) {
         return { file, skip: "not a .patch file" };
     }
-    const base = file.slice(0, -".patch".length);
+    let base = file.slice(0, -".patch".length);
+    let suffix = "";
+    if (base.endsWith(".dev")) {
+        base = base.slice(0, -".dev".length);
+        suffix = ".dev";
+    }
     if (base.includes("++")) {
         return { file, skip: "nested package patch (++) cannot be parsed" };
     }
@@ -164,6 +258,7 @@ const parsePatchName = (file) => {
         version,
         prefix: parts.slice(0, nameParts).join("+"),
         tail: tail.length ? "+" + tail.join("+") : "",
+        suffix,
     };
 };
 
@@ -192,7 +287,7 @@ const checkPatches = (projectRoot) => {
             result.mismatches.push({
                 ...parsed,
                 installed,
-                renamedTo: `${parsed.prefix}+${installed}${parsed.tail}.patch`,
+                renamedTo: `${parsed.prefix}+${installed}${parsed.tail}${parsed.suffix}.patch`,
             });
         }
     }
@@ -203,7 +298,7 @@ const isTracked = (projectRoot, file, spawnSync = childProcess.spawnSync) =>
     spawnSync("git", ["ls-files", "--error-unmatch", file], { cwd: projectRoot, stdio: "ignore" })
         .status === 0;
 
-const renamePatches = ({ projectRoot, mismatches, runner, spawnSync }) => {
+const renamePatches = async ({ projectRoot, mismatches, runner, spawnSync }) => {
     const done = [];
     for (const m of mismatches) {
         const from = path.join("patches", m.file);
@@ -213,7 +308,7 @@ const renamePatches = ({ projectRoot, mismatches, runner, spawnSync }) => {
             continue;
         }
         if (isTracked(projectRoot, from, spawnSync)) {
-            runner.run("git", ["mv", from, to], { cwd: projectRoot });
+            await runner.run("git", ["mv", from, to], { cwd: projectRoot });
         } else {
             runner.log(`renaming ${from} -> ${to}`);
             fs.renameSync(path.join(projectRoot, from), path.join(projectRoot, to));
@@ -284,17 +379,29 @@ const restoreBackup = (projectRoot, lockfile, backup) => {
     }
 };
 
-const preflight = ({ projectRoot, runner }) => {
-    const result = runner.run("yarn", ["config", "get", "npmScopes", "--json"], {
-        cwd: projectRoot,
-        capture: true,
-    });
+// Yarn preflight, before anything is modified. Returns the age gate for the plan.
+const preflight = async ({ projectRoot, runner }) => {
+    const { log } = runner;
+    const config = (name, allowFail = false) =>
+        runner.run("yarn", ["config", "get", name, "--json"], { cwd: projectRoot, capture: true, allowFail });
+
+    const linker = await config("nodeLinker");
+    const scopes = await config("npmScopes");
+    const gate = await config("npmMinimalAgeGate", true);
+    const preapproved = await config("npmPreapprovedPackages", true);
+
     if (runner.dryRun) {
-        runner.log("  (then `yarn npm whoami --scope <scope>` for each scope with npmAlwaysAuth: true)");
-        return;
+        log("  (then: reject Plug'n'Play; `yarn npm whoami --scope <scope>` for each scope with npmAlwaysAuth: true; adjust cooldowns to the age gate)");
+        return { minutes: 0, preapproved: [] };
     }
-    for (const { scope, registry } of parseAuthScopes(result.stdout)) {
-        const who = runner.run("yarn", ["npm", "whoami", "--scope", scope], {
+
+    const linkerValue = parseYarnJson(linker.stdout);
+    if (typeof linkerValue === "string" && linkerValue !== "node-modules") {
+        throw new CliError(`${PNP_MESSAGE} (nodeLinker is ${linkerValue})`);
+    }
+
+    for (const { scope, registry } of parseAuthScopes(scopes.stdout)) {
+        const who = await runner.run("yarn", ["npm", "whoami", "--scope", scope], {
             cwd: projectRoot,
             allowFail: true,
         });
@@ -304,91 +411,95 @@ const preflight = ({ projectRoot, runner }) => {
             );
         }
     }
+
+    const minutes = gate.status === 0 ? toMinutes(parseYarnJson(gate.stdout), "m") ?? 0 : 0;
+    const list = preapproved.status === 0 ? parseYarnJson(preapproved.stdout) : [];
+    return { minutes, preapproved: Array.isArray(list) ? list.map(String) : [] };
 };
 
-// Executes a plan. Returns the process exit code.
-const executeUpdateDeps = ({ projectRoot, pm, plan, options, runner, spawnSync }) => {
+// Executes the update. Returns the process exit code. `planInput` feeds buildUpdateDepsPlan.
+const executeUpdateDeps = async ({ projectRoot, pm, planInput, options, runner, spawnSync, proc }) => {
     const { dryRun, log } = runner;
     const lockPath = path.join(projectRoot, pm.lockfile);
     const before = readJson(path.join(projectRoot, "package.json"));
-    let backup = null;
     let exitCode = 0;
 
-    const guarded = [];
-    const afterPreflight = [];
-    // Steps before `backup` are preflight; steps up to `patch-check` are guarded by the backup.
-    let phase = "pre";
-    for (const step of plan) {
-        if (step.type === "backup") {
-            phase = "guarded";
-        } else if (step.type === "patch-check") {
-            phase = "post";
-        } else if (step.type === "summary") {
-            phase = "summary";
-        }
-        (phase === "pre" ? afterPreflight : guarded).push({ ...step, phase });
+    const gate = pm.name === "yarn" ? await preflight({ projectRoot, runner }) : undefined;
+    const plan = buildUpdateDepsPlan({ ...planInput, pm, gate });
+    for (const warning of plan.warnings) {
+        log(`warning: ${warning}`);
     }
+    const guardedSteps = plan.filter((s) => s.type !== "patch-check" && s.type !== "summary");
+    const patchStep = plan.find((s) => s.type === "patch-check");
 
-    for (const step of afterPreflight) {
-        preflight({ projectRoot, runner });
-    }
-
-    try {
-        for (const step of guarded.filter((s) => s.phase === "guarded")) {
-            switch (step.type) {
-                case "backup":
-                    if (dryRun) {
-                        log(`[dry-run] would back up package.json and ${pm.lockfile} to a temp dir`);
-                    } else {
-                        backup = backupFiles(projectRoot, pm.lockfile);
-                    }
-                    break;
-                case "cmd":
-                    runner.run(step.cmd, step.args, { cwd: projectRoot });
-                    break;
-                case "remove-lockfile":
-                    if (dryRun) {
-                        log(`[dry-run] would delete ${pm.lockfile}`);
-                    } else {
-                        log(`removing ${pm.lockfile}`);
-                        fs.rmSync(lockPath, { force: true });
-                    }
-                    break;
-                case "touch-lockfile":
-                    if (dryRun) {
-                        log(`[dry-run] would recreate an empty ${pm.lockfile}`);
-                    } else {
-                        log(`creating empty ${pm.lockfile}`);
-                        fs.writeFileSync(lockPath, "");
-                    }
-                    break;
-                default:
-                    break;
+    let backup = null;
+    const runGuarded = async () => {
+        try {
+            for (const step of guardedSteps) {
+                switch (step.type) {
+                    case "backup":
+                        if (dryRun) {
+                            log(`[dry-run] would back up package.json and ${pm.lockfile} to a temp dir`);
+                        } else {
+                            backup = backupFiles(projectRoot, pm.lockfile);
+                            log(`Backed up package.json and ${pm.lockfile} to ${backup.dir}`);
+                        }
+                        break;
+                    case "cmd":
+                        await runner.run(step.cmd, step.args, { cwd: projectRoot });
+                        break;
+                    case "remove-lockfile":
+                        if (dryRun) {
+                            log(`[dry-run] would delete ${pm.lockfile}`);
+                        } else {
+                            log(`removing ${pm.lockfile}`);
+                            fs.rmSync(lockPath, { force: true });
+                        }
+                        break;
+                    case "touch-lockfile":
+                        if (dryRun) {
+                            log(`[dry-run] would recreate an empty ${pm.lockfile}`);
+                        } else {
+                            log(`creating empty ${pm.lockfile}`);
+                            fs.writeFileSync(lockPath, "");
+                        }
+                        break;
+                    default:
+                        break;
+                }
             }
+        } catch (error) {
+            if (backup) {
+                restoreBackup(projectRoot, pm.lockfile, backup);
+                fs.rmSync(backup.dir, { recursive: true, force: true });
+                log(`Restored package.json and ${pm.lockfile} from the backup (backup removed; node_modules was left as is).`);
+            }
+            throw error;
         }
-    } catch (error) {
-        if (backup) {
-            restoreBackup(projectRoot, pm.lockfile, backup);
-            fs.rmSync(backup.dir, { recursive: true, force: true });
-            log(`Restored package.json and ${pm.lockfile} from the backup (node_modules was left as is).`);
-        }
-        throw error;
+    };
+    if (dryRun) {
+        await runGuarded();
+    } else {
+        await withSignalGuard(runner, runGuarded, proc);
     }
 
-    for (const step of guarded.filter((s) => s.phase === "post")) {
+    if (patchStep) {
         if (dryRun) {
             log("[dry-run] would run patch-package and rename mismatched patches:");
         }
-        const result = runner.run(step.cmd, step.args, {
+        const result = await runner.run(patchStep.cmd, patchStep.args, {
             cwd: projectRoot,
             allowFail: true,
         });
         if (result.status !== 0) {
             log("");
             log("patch-package failed: a patch no longer applies to the installed version.");
-            log("Dependencies are installed (the backup was not restored); update or regenerate the patch.");
-            exitCode = 1;
-        } else if (dryRun) {
+            log("Dependencies are installed, so package.json and the lockfile were not restored;");
+            log("update or regenerate the patch.");
+            if (backup) log(`The pre-upgrade backup is kept at ${backup.dir}`);
+            return 1;
+        }
+        if (dryRun) {
             log(
                 options.renamePatches
                     ? "[dry-run] would compare patches/*.patch with node_modules and rename mismatches (git mv when tracked)"
@@ -398,7 +509,7 @@ const executeUpdateDeps = ({ projectRoot, pm, plan, options, runner, spawnSync }
             const { mismatches, notes } = checkPatches(projectRoot);
             for (const note of notes) log(`note: ${note}`);
             if (options.renamePatches) {
-                renamePatches({ projectRoot, mismatches, runner, spawnSync });
+                await renamePatches({ projectRoot, mismatches, runner, spawnSync });
             } else {
                 for (const m of mismatches) {
                     log(`note: patches/${m.file} is for ${m.name}@${m.version} but ${m.installed} is installed`);
@@ -422,40 +533,36 @@ const executeUpdateDeps = ({ projectRoot, pm, plan, options, runner, spawnSync }
     return exitCode;
 };
 
-const run = ({ values, projectRoot, runner, spawnSync }) => {
+const run = async ({ values, projectRoot, runner, spawnSync }) => {
     const pkg = readJson(path.join(projectRoot, "package.json"));
     const pm = detectPackageManager(projectRoot, pkg);
-    const trusted = values.trusted?.length ? values.trusted : ["@zyno*"];
     const hasExpo = Boolean(pkg.dependencies?.expo ?? pkg.devDependencies?.expo);
     const hasPatches = fs.existsSync(path.join(projectRoot, "patches"));
     const installHint = "install the app's dependencies first";
-    const plan = buildUpdateDepsPlan({
-        pm,
-        ncuCli: resolveBin("npm-check-updates", "ncu", [__dirname], "reinstall @zyno-io/mobile-foundation-rn"),
-        expoCli: hasExpo ? resolveBin("expo", "expo", [projectRoot], installHint) : undefined,
-        patchPackageCli: hasPatches
-            ? resolveBin(
-                  "patch-package",
-                  "patch-package",
-                  [projectRoot],
-                  "patches/ exists, so add patch-package to the app's devDependencies and install",
-              )
-            : undefined,
-        hasExpo,
-        hasPatches,
-        cooldown: values.cooldown,
-        trusted,
-        reject: values.reject ?? [],
-    });
-    const exitCode = executeUpdateDeps({
+    return executeUpdateDeps({
         projectRoot,
         pm,
-        plan,
+        planInput: {
+            ncuCli: resolveBin("npm-check-updates", "ncu", [__dirname], "reinstall @zyno-io/mobile-foundation-rn"),
+            expoCli: hasExpo ? resolveBin("expo", "expo", [projectRoot], installHint) : undefined,
+            patchPackageCli: hasPatches
+                ? resolveBin(
+                      "patch-package",
+                      "patch-package",
+                      [projectRoot],
+                      "patches/ exists, so add patch-package to the app's devDependencies and install",
+                  )
+                : undefined,
+            hasExpo,
+            hasPatches,
+            cooldown: values.cooldown,
+            trusted: values.trusted?.length ? values.trusted : [DEFAULT_TRUSTED],
+            reject: values.reject ?? [],
+        },
         options: { renamePatches: !values["no-rename-patches"] },
         runner,
         spawnSync,
     });
-    return exitCode;
 };
 
 module.exports = {
@@ -466,14 +573,19 @@ module.exports = {
     positionals: false,
     passthrough: false,
     run,
+    assertNodeModulesLinker,
     buildUpdateDepsPlan,
     checkPatches,
     detectPackageManager,
     diffMajors,
     executeUpdateDeps,
     formatCommand,
+    isPreapproved,
     parseAuthScopes,
     parseMajor,
     parsePatchName,
+    parseYarnJson,
     renamePatches,
+    resolveCooldowns,
+    toMinutes,
 };

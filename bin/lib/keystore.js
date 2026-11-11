@@ -4,9 +4,11 @@ const path = require("node:path");
 const childProcess = require("node:child_process");
 
 const { isInsideDirectory } = require("../../plugin/utils");
-const { normalizeReleaseSigningOptions } = require("../../plugin/release-signing");
+const { normalizeReleaseSigningOptions } = require("../../plugin/release-signing-options");
 const { loadProjectConfig } = require("./config");
 const { CliError, toRelative } = require("./util");
+
+const MIN_PASSWORD_LENGTH = 6;
 
 const OPTIONS = {
     out: { type: "string" },
@@ -29,8 +31,10 @@ Options:
   --cwd <dir>      App root (default: current directory)
 
 The password comes from the releaseSigning.passwordEnv variable (default
-APK_KS_PASSWORD) when set; otherwise a random one is generated and printed once.
-It is passed to keytool through the environment, never on the command line.`;
+APK_KS_PASSWORD, at least 6 characters) when set; otherwise a random one is
+generated and printed once. It is passed to keytool through the environment,
+never on the command line. The keystore is generated next to the target and
+renamed into place only on success, so a failed --force keeps the old one.`;
 
 const generatePassword = () => crypto.randomBytes(24).toString("base64url");
 
@@ -71,18 +75,32 @@ const resolveKeystoreOptions = ({ projectRoot, exp, pluginOptions, flags = {} })
         dname = "CN=" + escapeDnValue(exp.name.trim());
     }
 
-    return { out, alias, dname, passwordEnv: normalized.passwordEnv };
+    // Does releaseSigning, as configured, pick up what this command creates?
+    const configuredOut = path.resolve(projectRoot, normalized.keystorePath);
+    const usedByReleaseSigning =
+        raw !== false && out === configuredOut && alias === normalized.keyAlias;
+
+    return {
+        out,
+        alias,
+        dname,
+        passwordEnv: normalized.passwordEnv,
+        usedByReleaseSigning,
+        releaseSigningDisabled: raw === false,
+        configured: { keystorePath: normalized.keystorePath, keyAlias: normalized.keyAlias },
+    };
 };
 
-// Pure: the keytool commands. Passwords are referenced by env var name only.
-const buildKeystorePlan = ({ out, alias, dname, passwordEnv }) => ({
+// Pure: the keytool commands. Passwords are referenced by env var name only. The key is
+// generated into `tempOut` and moved to `out` by the caller on success.
+const buildKeystorePlan = ({ out, tempOut = out, alias, dname, passwordEnv }) => ({
     generate: {
         cmd: "keytool",
         args: [
             "-genkeypair",
             "-v",
             "-storetype", "PKCS12",
-            "-keystore", out,
+            "-keystore", tempOut,
             "-alias", alias,
             "-keyalg", "RSA",
             "-keysize", "4096",
@@ -120,7 +138,15 @@ const keytoolAvailable = (spawnSync = childProcess.spawnSync) => {
     return !result.error && result.status === 0;
 };
 
-const run = ({
+const assertPassword = (password, passwordEnv) => {
+    if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new CliError(
+            `$${passwordEnv} must be at least ${MIN_PASSWORD_LENGTH} characters (a keytool requirement)`,
+        );
+    }
+};
+
+const run = async ({
     values,
     projectRoot,
     runner,
@@ -130,7 +156,8 @@ const run = ({
 }) => {
     const { exp, pluginOptions } = loadConfig(projectRoot);
     const resolved = resolveKeystoreOptions({ projectRoot, exp, pluginOptions, flags: values });
-    const plan = buildKeystorePlan(resolved);
+    const tempOut = `${resolved.out}.new`;
+    const plan = buildKeystorePlan({ ...resolved, tempOut });
     const rel = toRelative(projectRoot, resolved.out);
     const { passwordEnv } = resolved;
 
@@ -143,6 +170,10 @@ const run = ({
     }
 
     const provided = Boolean(env[passwordEnv]);
+    if (provided) {
+        assertPassword(env[passwordEnv], passwordEnv);
+    }
+
     if (runner.dryRun) {
         runner.log(`Would create ${rel}${fs.existsSync(resolved.out) ? " (replacing the existing file)" : ""}`);
         runner.log(
@@ -150,19 +181,30 @@ const run = ({
                 ? `Password: from $${passwordEnv}`
                 : `Password: a random one would be generated and printed once (set $${passwordEnv} to choose it)`,
         );
-        runner.run(plan.generate.cmd, plan.generate.args);
-        runner.run(plan.list.cmd, plan.list.args);
+        await runner.run(plan.generate.cmd, plan.generate.args);
+        runner.log(`(then ${rel}.new would replace ${rel})`);
+        await runner.run(plan.list.cmd, plan.list.args);
         return;
     }
 
     const password = provided ? env[passwordEnv] : generatePassword();
     const childEnv = { [passwordEnv]: password };
     fs.mkdirSync(path.dirname(resolved.out), { recursive: true });
-    if (values.force) {
-        fs.rmSync(resolved.out, { force: true });
+    fs.rmSync(tempOut, { force: true });
+    try {
+        await runner.run(plan.generate.cmd, plan.generate.args, { cwd: projectRoot, env: childEnv });
+        if (!provided) {
+            runner.log("");
+            runner.log("Keystore password (shown once; it cannot be recovered):");
+            runner.log(`  ${password}`);
+            runner.log(`Store it as the CI secret ${passwordEnv} and in the team password manager.`);
+        }
+        fs.renameSync(tempOut, resolved.out);
+    } finally {
+        fs.rmSync(tempOut, { force: true });
     }
-    runner.run(plan.generate.cmd, plan.generate.args, { cwd: projectRoot, env: childEnv });
-    const listing = runner.run(plan.list.cmd, plan.list.args, {
+
+    const listing = await runner.run(plan.list.cmd, plan.list.args, {
         cwd: projectRoot,
         env: childEnv,
         capture: true,
@@ -178,13 +220,18 @@ const run = ({
     runner.log("With Play App Signing this is the upload key; Google holds the app-signing key,");
     runner.log("so also register Play's app-signing fingerprints for assetlinks.json.");
     runner.log("");
-    runner.log(`Commit ${rel}: it is useless without the password. releaseSigning picks it up`);
-    runner.log("on the next prebuild.");
-    if (!provided) {
-        runner.log("");
-        runner.log("Keystore password (shown once; it cannot be recovered):");
-        runner.log(`  ${password}`);
-        runner.log(`Store it as the CI secret ${passwordEnv} and in the team password manager.`);
+    runner.log(`Commit ${rel}: it is useless without the password.`);
+    if (resolved.usedByReleaseSigning) {
+        runner.log("releaseSigning picks it up on the next prebuild.");
+    } else if (resolved.releaseSigningDisabled) {
+        runner.log("releaseSigning is false, so prebuild will not use it. Set releaseSigning to true or an options object to enable signing.");
+    } else {
+        runner.log(
+            `warning: releaseSigning expects ${resolved.configured.keystorePath} with alias ${resolved.configured.keyAlias}, so prebuild will not use this keystore.`,
+        );
+        runner.log(
+            `Set releaseSigning.keystorePath to "${rel}" and releaseSigning.keyAlias to "${resolved.alias}" in the plugin options.`,
+        );
     }
 };
 
@@ -196,6 +243,7 @@ module.exports = {
     positionals: false,
     passthrough: false,
     run,
+    assertPassword,
     buildKeystorePlan,
     escapeDnValue,
     generatePassword,

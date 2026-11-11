@@ -41,7 +41,15 @@ const findFoundationPluginOptions = (exp) => {
 };
 
 const loadProjectConfig = (projectRoot) => {
-    const exp = loadExpoConfig(projectRoot);
+    let exp;
+    try {
+        exp = loadExpoConfig(projectRoot);
+    } catch (error) {
+        if (error instanceof CliError) {
+            throw error;
+        }
+        throw new CliError(`could not load the Expo config: ${error.message}`, { cause: error });
+    }
     return { exp, pluginOptions: findFoundationPluginOptions(exp) };
 };
 

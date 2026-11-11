@@ -11,28 +11,20 @@ const {
 const {
     PACKAGE,
     assertAnchor,
-    assertKnownKeys,
-    assertOptionsObject,
     isInsideDirectory,
-    isPlainObject,
 } = require("./utils");
+const {
+    DEFAULT_KEYSTORE_PATH,
+    normalizeReleaseSigningOptions,
+} = require("./release-signing-options");
 
 const PLUGIN_NAME = `${PACKAGE.name}/release-signing`;
 const TAG = "mobile-foundation-release-signing";
-const DEFAULT_KEYSTORE_PATH = "resources/native/android/signer.jks";
 const SIGNING_CONFIGS_ANCHOR = /^ {4}signingConfigs \{$/;
 const SIGNING_CONFIGS_END = /^ {4}\}$/;
 const RELEASE_SIGNING_CONFIG = /^\s*release\s*\{\s*$/;
 const RELEASE_BUILD_TYPE_SIGNING =
     /(^ {4}buildTypes \{\n[\s\S]*?^ {8}release \{\n[^{}]*?^ {12}signingConfig signingConfigs\.)(\w+)$/m;
-const FALLBACK_MODES = ["local", "always", "never"];
-const OPTION_KEYS = [
-    "keystorePath",
-    "keyAlias",
-    "passwordEnv",
-    "debugKeystoreFallback",
-];
-
 const createReleaseSigningConfig = ({
     keyAlias,
     passwordEnv,
@@ -141,60 +133,6 @@ const patchReleaseSigning = (contents, options) => {
     };
 };
 
-const assertPath = (value, optionName) => {
-    if (
-        typeof value !== "string" ||
-        value.trim().length === 0 ||
-        /[\r\n]/.test(value)
-    ) {
-        throw new Error(
-            `${PLUGIN_NAME} requires ${optionName} to be a non-empty string without newlines`,
-        );
-    }
-};
-
-const normalizeReleaseSigningOptions = (raw) => {
-    if (raw === false) {
-        return null;
-    }
-
-    const value = raw === undefined || raw === true ? {} : raw;
-    assertOptionsObject(value, "releaseSigning", PLUGIN_NAME);
-    assertKnownKeys(value, OPTION_KEYS, "releaseSigning", PLUGIN_NAME);
-
-    const normalized = {
-        explicit: raw !== undefined,
-        keystorePath: value.keystorePath ?? DEFAULT_KEYSTORE_PATH,
-        keyAlias: value.keyAlias ?? "key0",
-        passwordEnv: value.passwordEnv ?? "APK_KS_PASSWORD",
-        debugKeystoreFallback: value.debugKeystoreFallback ?? "local",
-    };
-
-    assertPath(normalized.keystorePath, "keystorePath");
-    if (
-        typeof normalized.keyAlias !== "string" ||
-        !/^[^'\\\r\n]+$/.test(normalized.keyAlias)
-    ) {
-        throw new Error(
-            `${PLUGIN_NAME} requires keyAlias to be a non-empty string without quotes, backslashes, or newlines`,
-        );
-    }
-    if (
-        typeof normalized.passwordEnv !== "string" ||
-        !/^[A-Za-z_][A-Za-z0-9_]*$/.test(normalized.passwordEnv)
-    ) {
-        throw new Error(
-            `${PLUGIN_NAME} requires passwordEnv to be a valid environment variable name`,
-        );
-    }
-    if (!FALLBACK_MODES.includes(normalized.debugKeystoreFallback)) {
-        throw new Error(
-            `${PLUGIN_NAME} requires debugKeystoreFallback to be one of ${FALLBACK_MODES.join(", ")}`,
-        );
-    }
-
-    return normalized;
-};
 
 const resolveReleaseKeystore = (projectRoot, options) => {
     const source = path.resolve(projectRoot, options.keystorePath);

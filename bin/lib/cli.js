@@ -3,10 +3,24 @@ const { parseArgs } = require("node:util");
 const { resolveProjectRoot } = require("./config");
 const { CliError, createRunner } = require("./util");
 
+// Command modules load on first use, so --help and unrelated commands never pull in more
+// than they need.
 const COMMANDS = [
-    require("./update-deps"),
-    require("./update-match"),
-    require("./keystore"),
+    {
+        name: "update-deps",
+        summary: "Upgrade dependencies, reinstall, fix Expo versions, check patches",
+        load: () => require("./update-deps"),
+    },
+    {
+        name: "update-match",
+        summary: "Refresh fastlane match certificates and profiles",
+        load: () => require("./update-match"),
+    },
+    {
+        name: "generate-android-keystore",
+        summary: "Generate the Android upload keystore",
+        load: () => require("./keystore"),
+    },
 ];
 
 const GLOBAL_OPTIONS = {
@@ -40,10 +54,11 @@ const parseCommandLine = (argv) => {
     if (name === undefined || name === "--help" || name === "-h" || name === "help") {
         return { help: true };
     }
-    const command = COMMANDS.find((c) => c.name === name);
-    if (!command) {
+    const entry = COMMANDS.find((c) => c.name === name);
+    if (!entry) {
         throw new CliError(`unknown command "${name}"`, { usage: true, exitCode: 2 });
     }
+    const command = entry.load();
     const [before, after] = splitPassthrough(rest);
     if (after.length && !command.passthrough) {
         throw new CliError(`${command.name} does not accept arguments after --`, { usage: true, exitCode: 2 });
@@ -71,10 +86,11 @@ const parseCommandLine = (argv) => {
     };
 };
 
-// Returns the exit code; never calls process.exit.
-const main = (argv, deps = {}) => {
+// Resolves to the exit code; never calls process.exit.
+const main = async (argv, deps = {}) => {
     const out = deps.out ?? ((line) => console.log(line));
     const err = deps.err ?? ((line) => console.error(line));
+    const env = deps.env ?? process.env;
     try {
         const parsed = parseCommandLine(argv);
         if (parsed.help) {
@@ -87,27 +103,30 @@ const main = (argv, deps = {}) => {
         if (runner.dryRun) {
             out("Dry run: no commands will be executed and no files changed.");
         }
-        const code = command.run({
+        const code = await command.run({
             values,
             positionals,
             passthrough,
             projectRoot,
             runner,
-            env: deps.env ?? process.env,
+            env,
             loadConfig: deps.loadConfig,
             spawnSync: deps.spawnSync,
         });
         return typeof code === "number" ? code : 0;
     } catch (error) {
-        if (!(error instanceof CliError)) {
-            throw error;
-        }
         err(`mfrn: ${error.message}`);
-        if (error.usage) {
-            err("");
-            err(usage());
+        if (env.MFRN_DEBUG) {
+            err(String((error.cause ?? error).stack ?? error));
         }
-        return error.exitCode;
+        if (error instanceof CliError) {
+            if (error.usage) {
+                err("");
+                err(usage());
+            }
+            return error.exitCode;
+        }
+        return 1;
     }
 };
 

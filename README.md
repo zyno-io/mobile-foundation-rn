@@ -227,7 +227,9 @@ bundled. Every command supports `--dry-run` and `--cwd <dir>`.
 - `mfrn update-deps`: checks registry auth, upgrades dependencies (with a
   release cooldown, no cooldown for `--trusted` patterns, default `@zyno*`),
   reinstalls, runs `expo install --fix`, checks and renames patches, and
-  summarizes major bumps. Failures restore `package.json` and the lockfile.
+  summarizes major bumps. A failure or SIGINT/SIGTERM/SIGHUP before the patch
+  check restores `package.json` and the lockfile; a `patch-package` failure
+  does not (dependencies stay installed) and exits non-zero.
 - `mfrn update-match [types...]`: runs `fastlane match` for the identifiers in
   `fastlane.ios.matchAppIdentifiers`. Replaces the generated `update-match.sh`.
 - `mfrn generate-android-keystore`: creates the upload keystore that

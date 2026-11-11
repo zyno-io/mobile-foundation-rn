@@ -31,8 +31,15 @@ plugin entry, using the same normalization and validation as `expo prebuild`.
 | `-h`, `--help` | | Help, also per command (`mfrn <command> --help`) |
 
 Every external command is echoed as `$ command args` before it runs, inherits
-the terminal, and aborts the run with a message if it exits non-zero. An
-unknown command or flag prints usage and exits non-zero.
+the terminal, and aborts the run with a message if it exits non-zero. Three
+kinds of command may fail without aborting immediately because the CLI handles
+the result itself: `yarn npm whoami` (reported as an auth error naming the
+scope), the optional `yarn config get` probes for the age gate (older yarn
+versions lack those settings), and `patch-package` (see below). Two read-only
+probes are not echoed: `git ls-files` (is a patch tracked?) and `keytool -help`
+(is a JDK installed?). An unknown command or flag prints usage and exits
+non-zero. Configuration errors print a one-line `mfrn:` message; set
+`MFRN_DEBUG=1` to see the stack.
 
 Tools on `PATH`: `yarn` or `npm` for `update-deps`; `bundle` (with `fastlane` in
 the app's Gemfile) for `update-match`; `keytool` (any JDK) for
@@ -61,14 +68,24 @@ bun are rejected.
 
 Steps:
 
-1. **Registry preflight (yarn).** Reads `yarn config get npmScopes --json` and
-   runs `yarn npm whoami --scope <scope>` for every scope the app configured
-   with `npmAlwaysAuth: true`. A failure aborts before anything changes, naming
-   the scope and registry from the app's config and suggesting
-   `yarn npm login --scope <scope>`. Without such scopes (or with npm) this is a
-   no-op. The reason: deleting the lockfile while a private registry rejects
-   auth leaves an empty lockfile.
-2. Backs up `package.json` and the lockfile to a temp directory.
+1. **Preflight (yarn).** Nothing is modified until it passes.
+   - Plug'n'Play is rejected (a `.pnp.cjs` file or a `nodeLinker` other than
+     `node-modules`); patches and Expo read `node_modules`.
+   - Reads `yarn config get npmScopes --json` and runs
+     `yarn npm whoami --scope <scope>` for every scope the app configured with
+     `npmAlwaysAuth: true`. A failure aborts, naming the scope and the registry
+     from the app's config and suggesting `yarn npm login --scope <scope>`.
+     Without such scopes (or with npm) this is a no-op. The reason: deleting the
+     lockfile while a private registry rejects auth leaves an empty lockfile.
+   - Reads yarn's `npmMinimalAgeGate` (yarn 4 defaults to 1440 minutes) and
+     `npmPreapprovedPackages`. Yarn refuses to install a release younger than
+     the gate, which would defeat a no-cooldown pass. So a `--cooldown` shorter
+     than the gate is raised to it, and each trusted pattern that is not covered
+     by `npmPreapprovedPackages` runs with the gate as its cooldown; both cases
+     print a warning. For same-day upgrades of trusted packages, add the scope
+     (for example `@zyno-io/*`) to `npmPreapprovedPackages` in `.yarnrc.yml`.
+2. Backs up `package.json` and the lockfile to a temp directory (the path is
+   printed).
 3. Runs npm-check-updates with the cooldown, then once per trusted pattern
    without it. `--reject` patterns are passed to every pass.
 4. Deletes the lockfile (yarn: recreates it empty) and installs.
@@ -83,10 +100,14 @@ Steps:
    major, it prints a prominent reminder to run a clean prebuild and pod
    install and to review the native changes.
 
-Failure behavior: a failure in steps 2 to 6 restores `package.json` and the
-lockfile from the backup and says so; `node_modules` is left as is. A
-`patch-package` failure does not restore anything (dependencies are installed;
-only the patch is broken) and the command exits non-zero.
+Failure behavior: a failure in steps 3 to 6 restores `package.json` and the
+lockfile from the backup and says so; `node_modules` is left as is. The same
+happens when the process receives SIGINT, SIGTERM or SIGHUP during those steps:
+the running child is killed, the files are restored and the exit code is 128
+plus the signal number (130 for Ctrl-C). After step 6 nothing is restored: a
+`patch-package` failure leaves the installed dependencies in place (only the
+patch is broken), prints the backup path (kept in that case), and exits
+non-zero. A signal during the patch check just ends the command.
 
 On disk it changes `package.json`, the lockfile, `node_modules` and, for
 renames, `patches/`.
@@ -114,8 +135,11 @@ Reads `fastlane.ios`: `matchAppIdentifiers` (per type), `extensionTargets`
 (each identifier also expands to `id.Target`), `matchGitUrl` (`--git_url`) and
 `appleTeamId` (else `expo.ios.appleTeamId`, as `--team_id`). It errors when
 fastlane or `fastlane.ios` is disabled, when no identifiers are configured, for
-an unknown or unconfigured type, and when neither `matchGitUrl` nor the
-`MATCH_GIT_URL` environment variable is set.
+and for an unknown or unconfigured type. A missing match repository is only a
+warning: it is not needed when `matchGitUrl`, the `MATCH_GIT_URL` environment
+variable, a `git_url` in `ios/fastlane/Matchfile`, `MATCH_GIT_URL` in an
+`ios/fastlane/.env*` file, or `--git_url`/`git_url:` after `--` provides it;
+otherwise fastlane prompts or fails itself.
 
 It runs `bundle exec fastlane match <type> -a <ids> ...` once per type, in
 `ios/` (or the project root when there is no `ios/`), and warns when
@@ -143,19 +167,26 @@ mfrn generate-android-keystore [--out <path>] [--alias <name>] [--dname <dn>] [-
 
 Reads the `releaseSigning` options (`keystorePath`, `keyAlias`, `passwordEnv`)
 and `expo.name`. It refuses to overwrite an existing file without `--force` and
-creates missing parent directories. The only file it writes is the keystore.
+creates missing parent directories. The keystore is generated into
+`<out>.new` and renamed over the target only when `keytool` succeeds, so a
+failed `--force` run keeps the old keystore; the temp file is removed either
+way.
 
 The password is read from the `passwordEnv` variable (default
-`APK_KS_PASSWORD`). When unset, a random one is generated and printed once at the
-end; store it as a CI secret with that name and in the team password manager,
-because it cannot be recovered. It reaches `keytool` through `-storepass:env` and
+`APK_KS_PASSWORD`; at least 6 characters, checked before anything runs). When
+unset, a random one is generated and printed once, right after the key is
+created; store it as a CI secret with that name and in the team password
+manager, because it cannot be recovered. It reaches `keytool` through `-storepass:env` and
 `-keypass:env`, never on a command line.
 
 It runs `keytool -genkeypair` (RSA 4096, valid 10000 days), then
 `keytool -list -v` and prints the SHA-1 and SHA-256 fingerprints. Use them for
 Android App Links (`assetlinks.json`) and Firebase. With Play App Signing this
 keystore is the upload key, not the app-signing key. Commit the keystore: it is
-useless without the password. `releaseSigning` picks it up on the next prebuild.
+useless without the password. `releaseSigning` picks it up on the next prebuild
+only when the path and alias match its effective `keystorePath` and `keyAlias`
+(and it is not `false`); otherwise the command warns and tells you which options
+to set.
 
 ```bash
 mfrn generate-android-keystore --dname "CN=Example App, O=Example Inc"

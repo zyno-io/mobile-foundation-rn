@@ -1,9 +1,10 @@
 const fs = require('node:fs');
+const { EventEmitter } = require('node:events');
 const os = require('node:os');
 const path = require('node:path');
 
 const { main, parseCommandLine } = require('../../bin/lib/cli');
-const { createRunner, formatCommand } = require('../../bin/lib/util');
+const { createRunner, formatCommand, withSignalGuard } = require('../../bin/lib/util');
 const { findFoundationPluginOptions } = require('../../bin/lib/config');
 const updateDeps = require('../../bin/lib/update-deps');
 const updateMatch = require('../../bin/lib/update-match');
@@ -23,33 +24,33 @@ const mkProject = (files: Record<string, string> = {}) => {
 afterAll(() => tmp.forEach((d) => fs.rmSync(d, { recursive: true, force: true })));
 
 describe('arg parsing', () => {
-    const run = (argv: string[]) => {
+    const run = async (argv: string[]) => {
         const out: string[] = [];
         const err: string[] = [];
-        const code = main(argv, { out: (l: string) => out.push(l), err: (l: string) => err.push(l) });
+        const code = await main(argv, { out: (l: string) => out.push(l), err: (l: string) => err.push(l) });
         return { code, out: out.join('\n'), err: err.join('\n') };
     };
 
-    it('prints usage for --help and no args', () => {
-        expect(run(['--help']).out).toContain('Usage: mfrn <command>');
-        expect(run([]).code).toBe(0);
-        expect(run(['update-match', '--help']).out).toContain('Usage: mfrn update-match');
+    it('prints usage for --help and no args', async () => {
+        expect((await run(['--help'])).out).toContain('Usage: mfrn <command>');
+        expect((await run([])).code).toBe(0);
+        expect((await run(['update-match', '--help'])).out).toContain('Usage: mfrn update-match');
     });
 
-    it('fails on unknown commands and flags with usage', () => {
-        const unknown = run(['nope']);
+    it('fails on unknown commands and flags with usage', async () => {
+        const unknown = await run(['nope']);
         expect(unknown.code).toBe(2);
         expect(unknown.err).toContain('unknown command "nope"');
         expect(unknown.err).toContain('Usage: mfrn <command>');
-        expect(run(['update-match', '--bogus']).code).toBe(2);
-        expect(run(['update-deps', 'extra']).code).toBe(2);
-        expect(run(['update-deps', '--', 'x']).code).toBe(2);
+        expect((await run(['update-match', '--bogus'])).code).toBe(2);
+        expect((await run(['update-deps', 'extra'])).code).toBe(2);
+        expect((await run(['update-deps', '--', 'x'])).code).toBe(2);
     });
 
-    it('requires package.json in --cwd', () => {
+    it('requires package.json in --cwd', async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mfrn-test-'));
         tmp.push(dir);
-        const result = run(['update-match', '--cwd', dir]);
+        const result = await run(['update-match', '--cwd', dir]);
         expect(result.code).toBe(1);
         expect(result.err).toContain('no package.json');
     });
@@ -71,43 +72,96 @@ describe('arg parsing', () => {
 });
 
 describe('runner', () => {
-    it('echoes commands and does not spawn in dry-run', () => {
+    // A fake child process: emits close on the next microtask unless `hold` is set.
+    const fakeSpawn = (result: any = { code: 0 }, { hold = false } = {}) => {
+        const children: any[] = [];
+        const spawn = jest.fn((cmd: string, args: string[], opts: any) => {
+            const child: any = new EventEmitter();
+            child.stdout = new EventEmitter();
+            child.stdout.setEncoding = () => {};
+            child.kill = jest.fn((sig: string) => child.emit('close', null, sig));
+            children.push(child);
+            if (!hold) {
+                Promise.resolve().then(() => {
+                    if (result.stdout) child.stdout.emit('data', result.stdout);
+                    child.emit('close', result.code ?? null, result.signal ?? null);
+                });
+            }
+            return child;
+        });
+        return { spawn, children };
+    };
+
+    it('echoes commands and does not spawn in dry-run', async () => {
         const log = jest.fn();
-        const spawnSync = jest.fn();
-        const runner = createRunner({ dryRun: true, log, spawnSync });
-        runner.run('yarn', ['add', 'a b']);
+        const { spawn } = fakeSpawn();
+        const runner = createRunner({ dryRun: true, log, spawn });
+        await runner.run('yarn', ['add', 'a b']);
         expect(log).toHaveBeenCalledWith("$ yarn add 'a b'");
-        expect(spawnSync).not.toHaveBeenCalled();
+        expect(spawn).not.toHaveBeenCalled();
     });
 
-    it('aborts on non-zero exit and merges env without echoing it', () => {
+    it('aborts on non-zero exit and merges env without echoing it', async () => {
         const log = jest.fn();
-        const spawnSync = jest.fn().mockReturnValue({ status: 3, stdout: '' });
-        const runner = createRunner({ log, spawnSync, baseEnv: { A: '1' } });
-        expect(() => runner.run('x', ['y'], { env: { SECRET: 's' } })).toThrow('command failed (exit 3): x y');
-        expect(spawnSync.mock.calls[0][2].env).toEqual({ A: '1', SECRET: 's' });
+        const { spawn } = fakeSpawn({ code: 3 });
+        const runner = createRunner({ log, spawn, baseEnv: { A: '1' } });
+        await expect(runner.run('x', ['y'], { env: { SECRET: 's' } })).rejects.toThrow('command failed (exit 3): x y');
+        expect(spawn.mock.calls[0][2].env).toEqual({ A: '1', SECRET: 's' });
         expect(JSON.stringify(log.mock.calls)).not.toContain('SECRET');
+    });
+
+    it('captures stdout and tolerates failures with allowFail', async () => {
+        const { spawn } = fakeSpawn({ code: 1, stdout: 'out' });
+        const runner = createRunner({ log: jest.fn(), spawn });
+        await expect(runner.run('x', [], { capture: true, allowFail: true })).resolves.toEqual({ status: 1, stdout: 'out' });
+    });
+
+    it('turns a signal-killed child into an interrupt error with 128+n', async () => {
+        const { spawn } = fakeSpawn({ signal: 'SIGINT' });
+        const runner = createRunner({ log: jest.fn(), spawn });
+        await expect(runner.run('x')).rejects.toMatchObject({ exitCode: 130 });
+    });
+
+    it('kills the running child on interrupt() and refuses later commands', async () => {
+        const { spawn, children } = fakeSpawn({}, { hold: true });
+        const runner = createRunner({ log: jest.fn(), spawn });
+        const pending = runner.run('slow');
+        await Promise.resolve();
+        runner.interrupt('SIGTERM');
+        await expect(pending).rejects.toMatchObject({ exitCode: 143 });
+        expect(children[0].kill).toHaveBeenCalledWith('SIGTERM');
+        await expect(runner.run('next')).rejects.toThrow('interrupted (SIGTERM)');
+    });
+
+    it('registers and removes signal listeners around a guarded block', async () => {
+        const proc = new EventEmitter();
+        const runner = { interrupt: jest.fn() };
+        await withSignalGuard(runner, async () => {
+            expect(proc.listenerCount('SIGINT')).toBe(1);
+            proc.emit('SIGHUP');
+        }, proc);
+        expect(runner.interrupt).toHaveBeenCalledWith('SIGHUP');
+        for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) expect(proc.listenerCount(sig)).toBe(0);
     });
 });
 
 describe('update-deps', () => {
     const pm = { name: 'yarn', lockfile: 'yarn.lock', install: ['yarn'] };
-    const plan = (extra: any = {}) =>
-        updateDeps.buildUpdateDepsPlan({
-            pm,
-            ncuCli: '/f/ncu.js',
-            expoCli: '/p/expo.js',
-            patchPackageCli: '/p/pp.js',
-            hasExpo: true,
-            hasPatches: true,
-            ...extra,
-        });
+    const baseInput = (extra: any = {}) => ({
+        ncuCli: '/f/ncu.js',
+        expoCli: '/p/expo.js',
+        patchPackageCli: '/p/pp.js',
+        hasExpo: true,
+        hasPatches: true,
+        ...extra,
+    });
+    const plan = (extra: any = {}) => updateDeps.buildUpdateDepsPlan({ pm, ...baseInput(), ...extra });
+    const cmdsOf = (steps: any[]) => steps.filter((s: any) => s.cmd).map((s: any) => [s.cmd, ...s.args]);
 
     it('plans commands with the resolved node binaries, not npx', () => {
         const steps = plan({ trusted: ['@acme*', '@other*'], reject: ['react', 'foo'], cooldown: '5d' });
-        const cmds = steps.filter((s: any) => s.cmd).map((s: any) => [s.cmd, ...s.args]);
         const node = process.execPath;
-        expect(cmds).toEqual([
+        expect(cmdsOf(steps)).toEqual([
             [node, '/f/ncu.js', '-u', '--cooldown', '5d', '--reject', 'react,foo'],
             [node, '/f/ncu.js', '-u', '@acme*', '--reject', 'react,foo'],
             [node, '/f/ncu.js', '-u', '@other*', '--reject', 'react,foo'],
@@ -116,19 +170,80 @@ describe('update-deps', () => {
             ['yarn'],
             [node, '/p/pp.js', '--error-on-fail'],
         ]);
-        expect(JSON.stringify(cmds)).not.toContain('npx');
+        expect(JSON.stringify(cmdsOf(steps))).not.toContain('npx');
         expect(steps.map((s: any) => s.type)).toEqual([
-            'preflight', 'backup', 'cmd', 'cmd', 'cmd', 'remove-lockfile', 'touch-lockfile', 'cmd', 'cmd', 'cmd', 'patch-check', 'summary',
+            'backup', 'cmd', 'cmd', 'cmd', 'remove-lockfile', 'touch-lockfile', 'cmd', 'cmd', 'cmd', 'patch-check', 'summary',
         ]);
     });
 
-    it('omits expo, patches, preflight and lockfile touch when not applicable (npm)', () => {
+    it('omits expo, patches and lockfile touch when not applicable (npm)', () => {
         const steps = plan({ pm: { name: 'npm', lockfile: 'package-lock.json', install: ['npm', 'install'] }, hasExpo: false, hasPatches: false });
         const types = steps.map((s: any) => s.type);
-        expect(types).not.toContain('preflight');
         expect(types).not.toContain('touch-lockfile');
         expect(types).not.toContain('patch-check');
-        expect(steps.filter((s: any) => s.cmd && s.cmd === 'npm')).toHaveLength(2);
+        expect(steps.filter((s: any) => s.cmd === 'npm')).toHaveLength(2);
+    });
+
+    describe('yarn age gate', () => {
+        it('converts durations to minutes', () => {
+            expect(updateDeps.toMinutes('3d', 'd')).toBe(4320);
+            expect(updateDeps.toMinutes('3', 'd')).toBe(4320);
+            expect(updateDeps.toMinutes(1440, 'm')).toBe(1440);
+            expect(updateDeps.toMinutes('12h', 'd')).toBe(720);
+            expect(updateDeps.toMinutes('soon', 'd')).toBeNull();
+        });
+
+        it('matches preapproved patterns', () => {
+            expect(updateDeps.isPreapproved('@acme*', ['@acme*'])).toBe(true);
+            expect(updateDeps.isPreapproved('@acme/*', ['@acme/*'])).toBe(true);
+            expect(updateDeps.isPreapproved('@acme/pkg', ['@acme/*'])).toBe(true);
+            expect(updateDeps.isPreapproved('@acme*', ['@other/*'])).toBe(false);
+            expect(updateDeps.isPreapproved('x', ['*'])).toBe(true);
+        });
+
+        it('gives unapproved trusted patterns the gate and raises a short main cooldown', () => {
+            const steps = plan({
+                cooldown: '1h',
+                trusted: ['@acme*', '@free*'],
+                gate: { minutes: 1440, preapproved: ['@free*'] },
+            });
+            const node = process.execPath;
+            expect(cmdsOf(steps).slice(0, 3)).toEqual([
+                [node, '/f/ncu.js', '-u', '--cooldown', '1440m'],
+                [node, '/f/ncu.js', '-u', '@acme*', '--cooldown', '1440m'],
+                [node, '/f/ncu.js', '-u', '@free*'],
+            ]);
+            expect(steps.warnings).toHaveLength(2);
+            expect(steps.warnings.join('\n')).toContain('npmPreapprovedPackages');
+        });
+
+        it('leaves cooldowns alone without a gate or with a longer main cooldown', () => {
+            expect(plan({ gate: { minutes: 0, preapproved: [] } }).warnings).toEqual([]);
+            const steps = plan({ cooldown: '3d', trusted: ['@free*'], gate: { minutes: 1440, preapproved: ['@free*'] } });
+            expect(cmdsOf(steps)[0]).toContain('3d');
+            expect(steps.warnings).toEqual([]);
+        });
+
+        it('reads the gate and preapproved list from yarn in the preflight', async () => {
+            const dir = mkProject({ 'yarn.lock': 'lock' });
+            const answers: Record<string, string> = {
+                nodeLinker: '"node-modules"',
+                npmScopes: '{}',
+                npmMinimalAgeGate: '1440',
+                npmPreapprovedPackages: '["@free*"]',
+            };
+            const run = jest.fn(async (cmd: string, args: string[]) =>
+                cmd === 'yarn' ? { status: 0, stdout: answers[args[2]] ?? '' } : { status: 0, stdout: '' });
+            const log = jest.fn();
+            await updateDeps.executeUpdateDeps({
+                projectRoot: dir, pm,
+                planInput: baseInput({ hasExpo: false, hasPatches: false, trusted: ['@acme*'] }),
+                options: {}, runner: { dryRun: false, log, run }, proc: new EventEmitter(),
+            });
+            const ncu = run.mock.calls.filter((c: any[]) => c[0] === process.execPath).map((c: any[]) => c[1]);
+            expect(ncu[1]).toEqual(['/f/ncu.js', '-u', '@acme*', '--cooldown', '1440m']);
+            expect(log.mock.calls.map((c: any[]) => c[0]).join('\n')).toContain('warning: trusted pattern @acme*');
+        });
     });
 
     it('detects the package manager', () => {
@@ -140,6 +255,15 @@ describe('update-deps', () => {
         expect(() => updateDeps.detectPackageManager(mkProject({ 'yarn.lock': '# yarn lockfile v1\n' }), {})).toThrow('yarn classic');
         expect(() => updateDeps.detectPackageManager(mkProject(), { packageManager: 'pnpm@9.0.0' })).toThrow('unsupported package manager "pnpm"');
         expect(() => updateDeps.detectPackageManager(mkProject(), {})).toThrow('could not detect');
+    });
+
+    it('rejects Yarn Plug\'n\'Play before anything else', () => {
+        const pnp = mkProject({ 'yarn.lock': '__metadata:\n', '.pnp.cjs': '' });
+        expect(() => updateDeps.detectPackageManager(pnp, { packageManager: 'yarn@4.1.0' })).toThrow('Plug\'n\'Play');
+        const rc = mkProject({ 'yarn.lock': '__metadata:\n', '.yarnrc.yml': 'nodeLinker: pnp\n' });
+        expect(() => updateDeps.detectPackageManager(rc, { packageManager: 'yarn@4.1.0' })).toThrow('node-modules');
+        const ok = mkProject({ 'yarn.lock': '__metadata:\n', '.yarnrc.yml': 'nodeLinker: node-modules\n' });
+        expect(updateDeps.detectPackageManager(ok, { packageManager: 'yarn@4.1.0' }).name).toBe('yarn');
     });
 
     it('parses yarn scopes that require auth', () => {
@@ -159,45 +283,47 @@ describe('update-deps', () => {
     });
 
     it('parses patch file names', () => {
-        expect(updateDeps.parsePatchName('react-native-screens+4.26.2.patch')).toMatchObject({ name: 'react-native-screens', version: '4.26.2', tail: '' });
+        expect(updateDeps.parsePatchName('react-native-screens+4.26.2.patch')).toMatchObject({ name: 'react-native-screens', version: '4.26.2', tail: '', suffix: '' });
         expect(updateDeps.parsePatchName('@scope+pkg+1.0.0-beta.1.patch')).toMatchObject({ name: '@scope/pkg', version: '1.0.0-beta.1', prefix: '@scope+pkg' });
         expect(updateDeps.parsePatchName('pkg+1.2.3+001+fix.patch')).toMatchObject({ name: 'pkg', tail: '+001+fix' });
+        expect(updateDeps.parsePatchName('pkg+1.2.3.dev.patch')).toMatchObject({ name: 'pkg', version: '1.2.3', suffix: '.dev' });
         expect(updateDeps.parsePatchName('a++b+1.0.0.patch').skip).toMatch('nested');
         expect(updateDeps.parsePatchName('weird.patch').skip).toMatch('version');
         expect(updateDeps.parsePatchName('@scope+1.0.0.patch').skip).toBeDefined();
     });
 
     describe('patches on disk', () => {
-        const project = () => {
-            const dir = mkProject({
+        const project = () =>
+            mkProject({
                 'patches/foo+1.0.0.patch': 'p',
                 'patches/@s+bar+2.0.0+001+x.patch': 'p',
+                'patches/dev+1.0.0.dev.patch': 'p',
                 'patches/same+1.0.0.patch': 'p',
                 'patches/nested++pkg+1.0.0.patch': 'p',
                 'patches/gone+1.0.0.patch': 'p',
                 'node_modules/foo/package.json': '{"version":"1.1.0"}',
                 'node_modules/@s/bar/package.json': '{"version":"2.1.0"}',
+                'node_modules/dev/package.json': '{"version":"1.2.0"}',
                 'node_modules/same/package.json': '{"version":"1.0.0"}',
             });
-            return dir;
-        };
 
-        it('detects mismatches and notes', () => {
+        it('detects mismatches (keeping .dev) and notes', () => {
             const { mismatches, notes } = updateDeps.checkPatches(project());
-            expect(mismatches.map((m: any) => m.renamedTo)).toEqual(['@s+bar+2.1.0+001+x.patch', 'foo+1.1.0.patch']);
+            expect(mismatches.map((m: any) => m.renamedTo)).toEqual(['@s+bar+2.1.0+001+x.patch', 'dev+1.2.0.dev.patch', 'foo+1.1.0.patch']);
             expect(notes.join('\n')).toContain('nested++pkg+1.0.0.patch');
             expect(notes.join('\n')).toContain('gone is not installed');
         });
 
-        it('renames with fs when untracked and git mv when tracked', () => {
+        it('renames with fs when untracked and git mv when tracked', async () => {
             const dir = project();
             const { mismatches } = updateDeps.checkPatches(dir);
             const run = jest.fn();
             const runner = { log: jest.fn(), run };
             const spawnSync = jest.fn((cmd: string, args: string[]) => ({ status: args[2] === 'patches/foo+1.0.0.patch' ? 0 : 1 }));
-            updateDeps.renamePatches({ projectRoot: dir, mismatches, runner, spawnSync });
+            await updateDeps.renamePatches({ projectRoot: dir, mismatches, runner, spawnSync });
             expect(run).toHaveBeenCalledWith('git', ['mv', 'patches/foo+1.0.0.patch', 'patches/foo+1.1.0.patch'], { cwd: dir });
             expect(fs.existsSync(path.join(dir, 'patches/@s+bar+2.1.0+001+x.patch'))).toBe(true);
+            expect(fs.existsSync(path.join(dir, 'patches/dev+1.2.0.dev.patch'))).toBe(true);
             expect(fs.existsSync(path.join(dir, 'patches/@s+bar+2.0.0+001+x.patch'))).toBe(false);
         });
     });
@@ -213,66 +339,98 @@ describe('update-deps', () => {
     });
 
     describe('execution', () => {
-        const setup = (failOn?: string) => {
+        const yarnAnswer = (args: string[]) => ({ status: 0, stdout: args[0] === 'config' ? ({ nodeLinker: '"node-modules"', npmScopes: '{}' } as any)[args[2]] ?? '' : '' });
+        const setup = (opts: { failOn?: (args: string[]) => boolean; planInput?: any } = {}) => {
             const dir = mkProject({ 'yarn.lock': 'original lock' });
             fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"app","dependencies":{"a":"^1.0.0"}}');
             const log = jest.fn();
-            const run = jest.fn((cmd: string, args: string[]) => {
+            const run = jest.fn(async (cmd: string, args: string[]) => {
+                if (cmd === 'yarn' && args[0] === 'config') return yarnAnswer(args);
                 if (args[0] === '/f/ncu.js' && args.includes('--cooldown')) {
                     fs.writeFileSync(path.join(dir, 'package.json'), '{"name":"app","dependencies":{"a":"^2.0.0"}}');
                 }
-                if (failOn && args.includes(failOn)) throw new Error('boom');
+                if (opts.failOn?.(args)) throw new Error('boom');
                 return { status: 0, stdout: '' };
             });
-            const runner = { dryRun: false, log, run };
-            const steps = updateDeps.buildUpdateDepsPlan({ pm, ncuCli: '/f/ncu.js', hasExpo: false, hasPatches: false });
-            return { dir, log, run, runner, steps };
+            const runner: any = { dryRun: false, log, run };
+            const planInput = baseInput({ hasExpo: false, hasPatches: false, ...opts.planInput });
+            const exec = (extra: any = {}) =>
+                updateDeps.executeUpdateDeps({ projectRoot: dir, pm, planInput, options: { renamePatches: true }, runner, proc: new EventEmitter(), ...extra });
+            return { dir, log, run, runner, exec, text: () => log.mock.calls.map((c: any[]) => c[0]).join('\n') };
         };
 
-        it('runs the preflight first, aborting before any file change', () => {
-            const { dir, run, runner, steps } = setup();
-            run.mockImplementationOnce(() => ({ status: 0, stdout: '{"acme":{"npmAlwaysAuth":true,"npmRegistryServer":"https://registry.example.com"}}' }));
-            run.mockImplementationOnce(() => ({ status: 1, stdout: '' }));
-            expect(() => updateDeps.executeUpdateDeps({ projectRoot: dir, pm, plan: steps, options: {}, runner })).toThrow(
+        it('runs the preflight first, aborting before any file change', async () => {
+            const { dir, run, exec } = setup();
+            run.mockImplementation(async (cmd: string, args: string[]) => {
+                if (args[0] === 'config') return yarnAnswer(args).stdout === '' ? { status: 0, stdout: '' } : { status: 0, stdout: args[2] === 'npmScopes' ? '{"acme":{"npmAlwaysAuth":true,"npmRegistryServer":"https://registry.example.com"}}' : '"node-modules"' };
+                if (args[0] === 'npm') return { status: 1, stdout: '' };
+                return { status: 0, stdout: '' };
+            });
+            await expect(exec()).rejects.toThrow(
                 /scope @acme \(https:\/\/registry.example.com\).*nothing was modified.*yarn npm login --scope acme/,
             );
-            expect(run.mock.calls[1]).toEqual(['yarn', ['npm', 'whoami', '--scope', 'acme'], expect.anything()]);
+            expect(run.mock.calls.some((c: any[]) => c[1][0] === 'npm' && c[1][3] === 'acme')).toBe(true);
+            expect(run.mock.calls.every((c: any[]) => c[0] === 'yarn')).toBe(true);
             expect(fs.readFileSync(path.join(dir, 'yarn.lock'), 'utf8')).toBe('original lock');
-            expect(run).toHaveBeenCalledTimes(2);
         });
 
-        it('restores package.json and the lockfile on failure', () => {
-            const { dir, runner, steps } = setup('--fix');
-            const withExpo = updateDeps.buildUpdateDepsPlan({ pm, ncuCli: '/f/ncu.js', expoCli: '--fix', hasExpo: true, hasPatches: false });
-            const failing = withExpo.map((s: any) => (s.cmd === process.execPath && s.args[0] === '--fix' ? { ...s, args: ['--fix'] } : s));
-            expect(() => updateDeps.executeUpdateDeps({ projectRoot: dir, pm, plan: failing, options: {}, runner })).toThrow('boom');
+        it('aborts when yarn reports a non-node-modules linker', async () => {
+            const { run, exec } = setup();
+            run.mockImplementation(async (cmd: string, args: string[]) => ({ status: 0, stdout: args[2] === 'nodeLinker' ? '"pnp"' : '' }));
+            await expect(exec()).rejects.toThrow('Plug\'n\'Play');
+        });
+
+        it('restores package.json and the lockfile on failure', async () => {
+            const { dir, exec, text } = setup({ failOn: (args) => args[1] === 'install', planInput: { hasExpo: true } });
+            await expect(exec()).rejects.toThrow('boom');
             expect(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).toContain('^1.0.0');
             expect(fs.readFileSync(path.join(dir, 'yarn.lock'), 'utf8')).toBe('original lock');
-            expect(steps.length).toBeGreaterThan(0);
+            expect(text()).toMatch(/Backed up package.json and yarn.lock to .*mfrn-update-deps-/);
+            expect(text()).toContain('Restored package.json and yarn.lock from the backup');
         });
 
-        it('recreates an empty lockfile on success and reports majors', () => {
-            const { dir, log, runner, steps } = setup();
-            expect(updateDeps.executeUpdateDeps({ projectRoot: dir, pm, plan: steps, options: {}, runner })).toBe(0);
+        it('restores and exits 130 when interrupted mid-command, then removes the listeners', async () => {
+            const proc = new EventEmitter();
+            const { dir, run, exec } = setup();
+            const base = run.getMockImplementation();
+            run.mockImplementation(async (cmd: string, args: string[]) => {
+                if (cmd === 'yarn' && args[0] !== 'config') {
+                    proc.emit('SIGINT');
+                    throw Object.assign(new Error('interrupted (SIGINT)'), { exitCode: 130 });
+                }
+                return base!(cmd, args);
+            });
+            const interrupt = jest.fn();
+            await expect(exec({ proc, runner: { dryRun: false, log: jest.fn(), run, interrupt } })).rejects.toMatchObject({ exitCode: 130 });
+            expect(interrupt).toHaveBeenCalledWith('SIGINT');
+            expect(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).toContain('^1.0.0');
+            expect(fs.readFileSync(path.join(dir, 'yarn.lock'), 'utf8')).toBe('original lock');
+            expect(proc.listenerCount('SIGINT')).toBe(0);
+        });
+
+        it('recreates an empty lockfile on success and reports majors', async () => {
+            const { dir, exec, text } = setup();
+            expect(await exec()).toBe(0);
             expect(fs.readFileSync(path.join(dir, 'yarn.lock'), 'utf8')).toBe('');
-            expect(log.mock.calls.map((c: any[]) => c[0]).join('\n')).toContain('a: ^1.0.0 -> ^2.0.0');
+            expect(text()).toContain('a: ^1.0.0 -> ^2.0.0');
         });
 
-        it('exits non-zero without restoring when patch-package fails', () => {
-            const { dir, runner } = setup();
-            const steps = updateDeps.buildUpdateDepsPlan({ pm, ncuCli: '/f/ncu.js', patchPackageCli: '/p/pp.js', hasExpo: false, hasPatches: true });
-            const original = runner.run;
-            runner.run = jest.fn((cmd: string, args: string[], o: any) => (args[0] === '/p/pp.js' ? { status: 1, stdout: '' } : original(cmd, args, o)));
-            expect(updateDeps.executeUpdateDeps({ projectRoot: dir, pm, plan: steps, options: { renamePatches: true }, runner })).toBe(1);
+        it('exits non-zero without restoring when patch-package fails, keeping the backup', async () => {
+            const { dir, run, exec, text } = setup({ planInput: { hasPatches: true } });
+            const base = run.getMockImplementation();
+            run.mockImplementation(async (cmd: string, args: string[], o: any) => (args[0] === '/p/pp.js' ? { status: 1, stdout: '' } : base!(cmd, args, o)));
+            expect(await exec()).toBe(1);
             expect(fs.readFileSync(path.join(dir, 'package.json'), 'utf8')).toContain('^2.0.0');
+            expect(text()).toContain('backup is kept at');
         });
 
-        it('changes nothing in dry-run', () => {
+        it('changes nothing in dry-run', async () => {
             const dir = mkProject({ 'yarn.lock': 'original lock' });
             const log = jest.fn();
-            const runner = createRunner({ dryRun: true, log, spawnSync: jest.fn() });
-            const steps = updateDeps.buildUpdateDepsPlan({ pm, ncuCli: '/f/ncu.js', hasExpo: false, hasPatches: false });
-            expect(updateDeps.executeUpdateDeps({ projectRoot: dir, pm, plan: steps, options: {}, runner })).toBe(0);
+            const spawn = jest.fn();
+            const runner = createRunner({ dryRun: true, log, spawn });
+            expect(await updateDeps.executeUpdateDeps({ projectRoot: dir, pm, planInput: baseInput({ hasExpo: false, hasPatches: false }), options: {}, runner })).toBe(0);
+            expect(spawn).not.toHaveBeenCalled();
             expect(fs.readFileSync(path.join(dir, 'yarn.lock'), 'utf8')).toBe('original lock');
             expect(log.mock.calls.map((c: any[]) => c[0]).join('\n')).toContain('would delete yarn.lock');
         });
@@ -335,7 +493,23 @@ describe('update-match', () => {
         expect(() => build({ pluginOptions: { fastlane: false } })).toThrow('fastlane is disabled');
         expect(() => build({ pluginOptions: { fastlane: { ios: false } } })).toThrow('fastlane.ios is disabled');
         expect(() => build({ pluginOptions: {} })).toThrow('no fastlane.ios.matchAppIdentifiers');
-        expect(() => build({ pluginOptions: options({ matchGitUrl: undefined }) })).toThrow('no match git URL');
+    });
+
+    it('warns instead of failing without a git url, unless another source provides one', () => {
+        const noUrl = (extra: any = {}) => build({ pluginOptions: options({ matchGitUrl: undefined }), ...extra });
+        expect(noUrl().warnings.join('\n')).toContain('no match git URL found');
+        expect(noUrl({ env: { FASTLANE_USER: 'a', MATCH_GIT_URL: 'x' } }).warnings).toEqual([]);
+        expect(noUrl({ passthrough: ['--git_url', 'x'] }).warnings).toEqual([]);
+        expect(noUrl({ passthrough: ['--git_url=x'] }).warnings).toEqual([]);
+        expect(noUrl({ passthrough: ['git_url:x'] }).warnings).toEqual([]);
+        const withFile = (name: string, contents: string) => {
+            const root = mkProject({ [`ios/fastlane/${name}`]: contents });
+            return noUrl({ projectRoot: root }).warnings;
+        };
+        expect(withFile('Matchfile', 'git_url("git@example.com:a/b.git")\n')).toEqual([]);
+        expect(withFile('Matchfile', '# git_url is unset: pass one\n')).toHaveLength(1);
+        expect(withFile('.env.default', 'MATCH_GIT_URL=git@example.com:a/b.git\n')).toEqual([]);
+        expect(withFile('.env', 'OTHER=1\n')).toHaveLength(1);
     });
 
     it('reuses the plugin validation', () => {
@@ -356,7 +530,7 @@ describe('generate-android-keystore', () => {
 
     it('resolves defaults', () => {
         const root = mkProject();
-        expect(resolve(root)).toEqual({
+        expect(resolve(root)).toMatchObject({
             out: path.join(root, 'resources/native/android/signer.jks'),
             alias: 'key0',
             dname: 'CN=My App',
@@ -425,53 +599,130 @@ describe('generate-android-keystore', () => {
 
     describe('run', () => {
         const exp = { name: 'My App' };
-        const exec = (root: string, { env = {}, spawn = { status: 0 }, listing = 'SHA1: AA:BB\n SHA256: CC:DD' }: any = {}) => {
+        const exec = async (root: string, { env = {}, spawn = { status: 0 }, values = {}, pluginOptions = {}, failGenerate = false, listing = 'SHA1: AA:BB\n SHA256: CC:DD' }: any = {}) => {
             const log = jest.fn();
-            const run = jest.fn((cmd: string, args: string[]) => ({ status: 0, stdout: args[0] === '-list' ? listing : '' }));
-            const runner = { dryRun: false, log, run };
-            keystore.run({
-                values: {},
-                projectRoot: root,
-                runner,
-                env,
-                loadConfig: () => ({ exp, pluginOptions: {} }),
-                spawnSync: () => spawn,
+            const order: string[] = [];
+            const run = jest.fn(async (cmd: string, args: string[]) => {
+                if (args[0] === '-genkeypair') {
+                    order.push('generate');
+                    const target = args[args.indexOf('-keystore') + 1];
+                    fs.writeFileSync(target, 'new keystore');
+                    if (failGenerate) throw new Error('keytool failed');
+                } else {
+                    order.push('list');
+                }
+                return { status: 0, stdout: args[0] === '-list' ? listing : '' };
             });
-            return { log, run, output: log.mock.calls.map((c: any[]) => c[0]).join('\n') };
+            log.mockImplementation((line: string) => { if (line.includes('Keystore password')) order.push('password'); });
+            const runner = { dryRun: false, log, run };
+            let error: any;
+            try {
+                await keystore.run({ values, projectRoot: root, runner, env, loadConfig: () => ({ exp, pluginOptions }), spawnSync: () => spawn });
+            } catch (e) {
+                error = e;
+            }
+            return { log, run, order, error, output: log.mock.calls.map((c: any[]) => c[0]).join('\n') };
         };
 
-        it('prints a generated password once and passes it by env only', () => {
+        it('prints a generated password once, before listing, and passes it by env only', async () => {
             const root = mkProject();
-            const { run, output } = exec(root, { listing: 'SHA1: AA:BB:CC\n SHA256: DD:EE:FF' });
+            const { run, output, order } = await exec(root);
             const password = run.mock.calls[0][2].env.APK_KS_PASSWORD;
             expect(password).toHaveLength(32);
             expect(JSON.stringify(run.mock.calls.map((c: any[]) => c[1]))).not.toContain(password);
             expect(output.split(password).length - 1).toBe(1);
-            expect(output).toContain('SHA-1:   AA:BB:CC');
+            expect(order).toEqual(['generate', 'password', 'list']);
+            expect(output).toContain('SHA-1:   AA:BB');
             expect(output).toContain('upload key');
-            expect(fs.existsSync(path.join(root, 'resources/native/android'))).toBe(true);
+            expect(output).toContain('releaseSigning picks it up');
+            expect(fs.readFileSync(path.join(root, 'resources/native/android/signer.jks'), 'utf8')).toBe('new keystore');
+            expect(fs.existsSync(path.join(root, 'resources/native/android/signer.jks.new'))).toBe(false);
         });
 
-        it('uses a provided password and never prints it', () => {
-            const { output, run } = exec(mkProject(), { env: { APK_KS_PASSWORD: 'from-env-secret' } });
+        it('uses a provided password and never prints it', async () => {
+            const { output, run } = await exec(mkProject(), { env: { APK_KS_PASSWORD: 'from-env-secret' } });
             expect(run.mock.calls[0][2].env.APK_KS_PASSWORD).toBe('from-env-secret');
             expect(output).not.toContain('from-env-secret');
         });
 
-        it('errors when keytool is missing', () => {
-            expect(() => exec(mkProject(), { spawn: { error: new Error('ENOENT') } })).toThrow('JDK is required');
+        it('rejects a password shorter than 6 characters up front', async () => {
+            const { error, run } = await exec(mkProject(), { env: { APK_KS_PASSWORD: 'short' } });
+            expect(error.message).toContain('at least 6 characters');
+            expect(run).not.toHaveBeenCalled();
         });
 
-        it('dry-run only echoes', () => {
+        it('keeps the old keystore and removes the temp file when keytool fails under --force', async () => {
+            const root = mkProject({ 'resources/native/android/signer.jks': 'old keystore' });
+            const { error } = await exec(root, { values: { force: true }, failGenerate: true });
+            expect(error.message).toBe('keytool failed');
+            expect(fs.readFileSync(path.join(root, 'resources/native/android/signer.jks'), 'utf8')).toBe('old keystore');
+            expect(fs.existsSync(path.join(root, 'resources/native/android/signer.jks.new'))).toBe(false);
+        });
+
+        it('replaces the old keystore on success under --force', async () => {
+            const root = mkProject({ 'resources/native/android/signer.jks': 'old keystore' });
+            await exec(root, { values: { force: true } });
+            expect(fs.readFileSync(path.join(root, 'resources/native/android/signer.jks'), 'utf8')).toBe('new keystore');
+        });
+
+        it('warns when releaseSigning would not use the keystore', async () => {
+            const mismatch = await exec(mkProject(), { values: { out: 'keys/up.jks', alias: 'upload' } });
+            expect(mismatch.output).not.toContain('picks it up');
+            expect(mismatch.output).toContain('releaseSigning expects resources/native/android/signer.jks with alias key0');
+            expect(mismatch.output).toContain('releaseSigning.keystorePath to "keys/up.jks" and releaseSigning.keyAlias to "upload"');
+            const disabled = await exec(mkProject(), { pluginOptions: { releaseSigning: false } });
+            expect(disabled.output).toContain('releaseSigning is false');
+            const custom = await exec(mkProject(), { pluginOptions: { releaseSigning: { keystorePath: 'k/a.jks', keyAlias: 'x' } }, values: { out: 'k/a.jks', alias: 'x' } });
+            expect(custom.output).toContain('picks it up');
+        });
+
+        it('errors when keytool is missing', async () => {
+            const { error } = await exec(mkProject(), { spawn: { error: new Error('ENOENT') } });
+            expect(error.message).toContain('JDK is required');
+        });
+
+        it('dry-run only echoes', async () => {
             const root = mkProject();
             const log = jest.fn();
-            const spawnSync = jest.fn();
-            const runner = createRunner({ dryRun: true, log, spawnSync });
-            keystore.run({ values: {}, projectRoot: root, runner, env: {}, loadConfig: () => ({ exp, pluginOptions: {} }), spawnSync: () => ({ status: 0 }) });
-            expect(spawnSync).not.toHaveBeenCalled();
+            const spawn = jest.fn();
+            const runner = createRunner({ dryRun: true, log, spawn });
+            await keystore.run({ values: {}, projectRoot: root, runner, env: {}, loadConfig: () => ({ exp, pluginOptions: {} }), spawnSync: () => ({ status: 0 }) });
+            expect(spawn).not.toHaveBeenCalled();
             expect(fs.existsSync(path.join(root, 'resources'))).toBe(false);
             expect(log.mock.calls.map((c: any[]) => c[0]).join('\n')).toContain('$ keytool -genkeypair -v');
         });
+    });
+});
+
+describe('config loading errors', () => {
+    const errorsFor = async (project: string, env: any = {}) => {
+        const err: string[] = [];
+        const code = await main(['update-match', '--cwd', project], { out: () => {}, err: (l: string) => err.push(l), env });
+        return { code, err: err.join('\n') };
+    };
+
+    it('turns a throwing app config into an mfrn error without a stack', async () => {
+        const root = mkProject({ 'node_modules/expo/config.js': "exports.getConfig = () => { throw new Error('bad app.config'); };" });
+        const { code, err } = await errorsFor(root);
+        expect(code).toBe(1);
+        expect(err).toBe('mfrn: could not load the Expo config: bad app.config');
+        expect((await errorsFor(root, { MFRN_DEBUG: '1' })).err).toContain('    at ');
+    });
+
+    it('explains a missing expo install', async () => {
+        const { code, err } = await errorsFor(mkProject());
+        expect(code).toBe(1);
+        expect(err).toContain('mfrn: could not resolve expo/config');
+    });
+
+    it('wraps plugin option validation errors', async () => {
+        const root = mkProject({
+            'node_modules/expo/config.js': "exports.getConfig = () => ({ exp: { plugins: [['@zyno-io/mobile-foundation-rn', { fastlane: { ios: { bogus: 1 } } }]] } });",
+        });
+        const { code, err } = await errorsFor(root);
+        expect(code).toBe(1);
+        expect(err).toContain('does not support fastlane.ios.bogus');
+        expect(err).not.toContain('    at ');
     });
 });
 
