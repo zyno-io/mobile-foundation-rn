@@ -3300,6 +3300,7 @@ __metadata:
     "@types/events": "npm:3.0.3"
     "@types/pako": "npm:^3.0.0"
     events: "npm:3.3.0"
+    npm-check-updates: "npm:^19.6.6"
     pako: "npm:3.0.2"
   peerDependencies:
     "@expo/react-native-action-sheet": "*"
@@ -3333,6 +3334,8 @@ __metadata:
       optional: true
     expo:
       optional: true
+  bin:
+    mfrn: bin/mfrn.js
   languageName: node
   linkType: soft
 
@@ -7429,6 +7432,16 @@ __metadata:
     "@noxcturnal/noxcturnal-win32-x64-msvc":
       optional: true
   checksum: 10c0/971a358b295913d4aede27e67a5e3ca0a4e4fb17f7275878d2807e67cc4da3a6c16f0b654e40c4ea52efd13f73778b34daec5c6e7bdcf21b18b4113bf111f79a
+  languageName: node
+  linkType: hard
+
+"npm-check-updates@npm:^19.6.6":
+  version: 19.6.6
+  resolution: "npm-check-updates@npm:19.6.6"
+  bin:
+    ncu: build/cli.js
+    npm-check-updates: build/cli.js
+  checksum: 10c0/2640dae5ebbb442c729de0548611e86c9aef2c88084cdfed73a8462d8bad3cebd47669d4a35b1973c00e11bc5692784f967d4047ca1f9d4d1521a9ffae65d846
   languageName: node
   linkType: hard
 
