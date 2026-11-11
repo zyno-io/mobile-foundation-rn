@@ -1,0 +1,5 @@
+{{HEADER}}
+
+# CI writes google-play-sa.json into android/ before running `fastlane supply`.
+json_key_file("./google-play-sa.json")
+package_name(ENV["BUNDLE_IDENTIFIER_ANDROID"] || {{PACKAGE_NAME}})

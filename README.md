@@ -28,7 +28,8 @@ Your app must install these packages:
 ## Expo Config Plugins
 
 The package includes reusable Expo config plugins for Android identity, raw
-Gradle settings, and Detox native setup. They require Expo SDK 58 or newer and
+Gradle settings, Detox native setup, Android release signing, fastlane files,
+and Sentry automatic-upload defaults. They require Expo SDK 58 or newer and
 run during `expo prebuild`, so generated native files do not need to be
 committed or patched in CI. Expo handles the iOS scene life cycle automatically.
 
@@ -93,7 +94,8 @@ Gradle wrapper settings. The foundation plugin can set both:
 
 Both maps accept any property name and any string, number, or boolean value.
 Existing generated properties are replaced in place; missing properties are
-appended. For a project that only needs this capability, use the standalone
+appended. The combined plugin defaults `android.enableMinifyInReleaseBuilds` to
+`false`; set it to `true` in `gradleProperties` to opt in to R8. For a project that only needs this capability, use the standalone
 entry point:
 
 ```json
@@ -109,6 +111,46 @@ entry point:
     }
 ]
 ```
+
+### Release signing, fastlane and Sentry defaults
+
+The combined plugin applies these defaults even without options:
+
+- `releaseSigning`: automatic; enabled only when
+  `resources/native/android/signer.jks` exists. Use `true` or an options object
+  (`keystorePath`, `keyAlias`, `passwordEnv`, `debugKeystoreFallback`) for
+  explicit mode, or `false` to turn it off.
+- `disableSentryAutoUpload`: `true`. Set `SENTRY_DISABLE_AUTO_UPLOAD=false` at
+  build time to re-enable uploads.
+- `fastlane`: generated into `ios/fastlane/` and `android/fastlane/`. Options
+  live under `fastlane.ios` (`appleTeamId`, `bundleIdentifier`,
+  `extensionTargets`, `matchGitUrl`, `matchAppIdentifiers`, `sourceDir`) and
+  `fastlane.android` (`packageName`, `sourceDir`).
+
+```json
+{
+    "expo": {
+        "plugins": [
+            [
+                "@zyno-io/mobile-foundation-rn",
+                {
+                    "releaseSigning": true,
+                    "fastlane": {
+                        "ios": {
+                            "matchGitUrl": "git@git.example.com:team/fastlane-certs.git",
+                            "matchAppIdentifiers": {
+                                "appstore": ["app.example"]
+                            }
+                        }
+                    }
+                }
+            ]
+        ]
+    }
+}
+```
+
+See the [config plugins guide](docs/guide/config-plugins.md) for details.
 
 ### Detox Android Setup
 

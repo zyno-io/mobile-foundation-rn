@@ -1,0 +1,6 @@
+{{HEADER}}
+
+app_identifier(ENV["BUNDLE_IDENTIFIER_IOS"] || {{BUNDLE_IDENTIFIER}})
+{{TEAM_ID}}
+
+# fastlane reads the Apple ID from FASTLANE_USER; CI authenticates with an App Store Connect API key.

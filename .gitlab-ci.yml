@@ -76,6 +76,8 @@ e2e:ios:
     - yarn --immutable
     - npx detox build-framework-cache
     - npx expo prebuild --clean --no-install --platform ios
+    - grep -q "@generated begin mobile-foundation-sentry-auto-upload" ios/.xcode.env
+    - test -f ios/fastlane/Fastfile
     - bundle install
     - LANG=en_US.UTF-8 bundle exec pod install --project-directory=ios
     - npx detox build -c ios.sim.release
@@ -124,6 +126,9 @@ e2e:android:
     - cd test-app
     - yarn --immutable
     - npx expo prebuild --clean --no-install --platform android
+    - grep -q "@generated begin mobile-foundation-sentry-auto-upload" android/app/build.gradle
+    - grep -q "^android.enableMinifyInReleaseBuilds=true$" android/gradle.properties
+    - test -f android/fastlane/Appfile
     - npx detox build -c android.emu.release
     - (cd android && ./gradlew --stop)
     # Boot after compilation so Gradle and the emulator do not compete for memory.
