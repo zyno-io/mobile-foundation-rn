@@ -217,6 +217,28 @@ For the combined `@zyno-io/mobile-foundation-rn` entry point, set `detox` to
 build-properties and Detox entry points can be used independently by any Expo
 project without enabling the rest of the foundation config plugin.
 
+## CLI
+
+The `mfrn` command handles app chores next to the plugins. It needs `yarn` or
+`npm` (update-deps), `bundle` with fastlane in the app's Gemfile (update-match)
+and `keytool` from a JDK (generate-android-keystore). `npm-check-updates` is
+bundled. Every command supports `--dry-run` and `--cwd <dir>`.
+
+- `mfrn update-deps`: checks registry auth, upgrades dependencies (with a
+  release cooldown, no cooldown for `--trusted` patterns, default `@zyno*`),
+  reinstalls, runs `expo install --fix`, checks and renames patches, and
+  summarizes major bumps. Failures restore `package.json` and the lockfile.
+- `mfrn update-match [types...]`: runs `fastlane match` for the identifiers in
+  `fastlane.ios.matchAppIdentifiers`. Replaces the generated `update-match.sh`.
+- `mfrn generate-android-keystore`: creates the upload keystore that
+  `releaseSigning` expects and prints its SHA-1/SHA-256 fingerprints.
+
+```json
+{ "scripts": { "deps:upgrade": "mfrn update-deps" } }
+```
+
+See the [CLI guide](docs/guide/cli.md).
+
 ## Quick Start
 
 ### 1. Configure Foundation

@@ -279,6 +279,7 @@ const withReleaseSigning = (config, raw) => {
 };
 
 module.exports = {
+    DEFAULT_KEYSTORE_PATH,
     createReleaseSigningConfig,
     normalizeReleaseSigningOptions,
     patchReleaseSigning,

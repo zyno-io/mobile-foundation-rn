@@ -18,8 +18,13 @@ const APPEND_FILE = "Fastfile.append";
 // No default match git URL: the package is public and must not carry internal hostnames.
 const MATCH_PROFILE_TYPES = ["development", "adhoc", "appstore", "enterprise"];
 const GENERATED_FILES = {
-    ios: ["Appfile", "Fastfile", "Matchfile", "update-match.sh", ".gitignore"],
+    ios: ["Appfile", "Fastfile", "Matchfile", ".gitignore"],
     android: ["Appfile", "Fastfile", ".gitignore"],
+};
+// Files earlier versions generated. A leftover one carrying the marker is deleted.
+const LEGACY_GENERATED_FILES = {
+    ios: ["update-match.sh"],
+    android: [],
 };
 const GITIGNORE = {
     ios: ["report.xml", "asc-api-key.json"],
@@ -87,26 +92,10 @@ const renderIosFastlane = ({
     appleTeamId,
     extensionTargets = [],
     matchGitUrl,
-    matchAppIdentifiers = {},
     sourceLabel,
     append,
 }) => {
     const header = createHeader(sourceLabel);
-    const commands = [];
-    for (const type of MATCH_PROFILE_TYPES) {
-        const ids = matchAppIdentifiers[type] ?? [];
-        if (ids.length === 0) {
-            continue;
-        }
-        const expanded = ids.flatMap((id) => [
-            id,
-            ...extensionTargets.map((target) => `${id}.${target}`),
-        ]);
-        commands.push(
-            `bundle exec fastlane match ${type} -a ${expanded.join(",")}`,
-        );
-    }
-
     const values = {
         HEADER: header,
         BUNDLE_IDENTIFIER: rubyString(bundleIdentifier),
@@ -118,7 +107,6 @@ const renderIosFastlane = ({
             : "# git_url is unset: CI passes git_url to prepare_provisioning. For local runs, pass git_url: or set fastlane.ios.matchGitUrl.",
         XCODE_PROJECT: rubyString(projectName),
         EXTENSION_TARGETS: rubyArray(extensionTargets),
-        MATCH_COMMANDS: commands.join("\n"),
         APPENDED_LANES: appendedLanes(append, sourceLabel),
     };
 
@@ -139,13 +127,6 @@ const renderIosFastlane = ({
             mode: 0o644,
         },
     ];
-    if (commands.length > 0) {
-        files.push({
-            name: "update-match.sh",
-            contents: renderTemplate("ios", "update-match.sh", values),
-            mode: 0o755,
-        });
-    }
     files.push({
         name: ".gitignore",
         contents: createGitignore("ios", header),
@@ -266,7 +247,10 @@ const writeFastlaneDirectory = ({ platform, outputDir, source, files }) => {
     }
 
     // 2. Stale generated files from an earlier run.
-    for (const name of GENERATED_FILES[platform]) {
+    for (const name of [
+        ...GENERATED_FILES[platform],
+        ...LEGACY_GENERATED_FILES[platform],
+    ]) {
         if (produced.has(name) || overrides.has(name)) {
             continue;
         }
@@ -497,7 +481,6 @@ const withFastlane = (config, raw) => {
                     appleTeamId: appleTeamId ?? undefined,
                     extensionTargets: ios.extensionTargets,
                     matchGitUrl: ios.matchGitUrl,
-                    matchAppIdentifiers: ios.matchAppIdentifiers,
                     sourceLabel: source.label,
                     append: readFastfileAppend(source),
                 });
@@ -553,6 +536,7 @@ const withFastlane = (config, raw) => {
 };
 
 module.exports = {
+    MATCH_PROFILE_TYPES,
     normalizeFastlaneOptions,
     readFastfileAppend,
     renderAndroidFastlane,

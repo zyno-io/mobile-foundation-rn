@@ -129,6 +129,9 @@ over a signing block left by an app-local plugin throws in explicit mode
 (`releaseSigning: true`) and warns and skips in automatic mode; run
 `npx expo prebuild --clean` after removing the app-local block.
 
+Create the keystore with `mfrn generate-android-keystore`; it uses these
+options as defaults. See the [CLI guide](/guide/cli).
+
 ## Sentry automatic upload
 
 `disableSentryAutoUpload` (default `true`) stops Sentry from uploading during
@@ -152,7 +155,6 @@ option; foundation's assignment is evaluated last and wins.
 | `Appfile` | both | Bundle ID or package name (env override in CI), iOS team ID |
 | `Fastfile` | both | Lanes the pipeline calls |
 | `Matchfile` | iOS | match storage and default type |
-| `update-match.sh` | iOS | Refreshes match profiles; only with `matchAppIdentifiers` |
 | `.gitignore` | both | Ignores `report.xml` and `asc-api-key.json` |
 
 The pipeline calls the iOS lanes `update_metadata`, `prepare_provisioning` and
@@ -170,8 +172,13 @@ Values come from options, falling back to the Expo config:
   bundle-ID suffix.
 - `matchGitUrl` has no default. Without it the Matchfile omits `git_url`. CI is
   unaffected because it passes `git_url` to `prepare_provisioning`; local
-  `match` runs (including `update-match.sh`) then need `git_url:` or
+  `match` runs (including `mfrn update-match`) then need `git_url:` or
   `MATCH_GIT_URL`. Set `matchGitUrl` to make local runs work out of the box.
+- `matchAppIdentifiers` maps each profile type (`development`, `adhoc`,
+  `appstore`, `enterprise`) to bundle IDs. It no longer renders a file; it is
+  the input of `mfrn update-match`, which expands `extensionTargets` for you.
+  Earlier versions generated `ios/fastlane/update-match.sh`; prebuild deletes a
+  leftover copy that still carries the generated marker.
 - Local `match` runs read the Apple ID from `FASTLANE_USER`.
 
 ### Overrides and appended lanes
