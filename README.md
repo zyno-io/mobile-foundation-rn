@@ -355,7 +355,8 @@ configured.
 | `fonts` | `Record<string, any>` | No | Font map passed to `useFonts()` |
 | `statusBar` | `{ barStyle }` | No | Status bar styling |
 | `splashScreen` | `'auto' \| 'manual'` | No | Splash screen hide behavior (default: `'auto'`) |
-| `updaterTimeout` | `number` | No | Max ms for each startup/checking phase; downloading uses 10 seconds and installation has no timeout |
+| `updaterTimeout` | `number` | No | Max ms for each startup/checking phase and for the launch update check (default 5000 for the launch check); downloading uses 10 seconds and installation has no timeout |
+| `launchUpdateGate` | `boolean` | No | Hold `Updater.statusText` non-null until the launch OTA check settles (default `true`) |
 | `requireProtectedDataAvailability` | `boolean` | No | On iOS, wait before managed storage and metadata operations. Default `false` attempts reads immediately and recovers denied access. See [protected data recovery](#protected-data-recovery). |
 | `deepLinkHandler` | `(url: string) => void` | No | Handler for queued launch URLs and subsequent deep-link events |
 | `supportContact` | `string` | No | Contact info shown in error dialogs |
@@ -483,13 +484,16 @@ import { Updater } from '@zyno-io/mobile-foundation-rn';
 import { observer } from 'mobx-react-lite';
 
 const Startup = observer(() => {
-    // Updater.statusText is null when not busy
+    // Updater.statusText is null when not busy, and non-null from launch until
+    // the launch update check settles (see Launch Gate in docs/api/updater.md)
     if (Updater.statusText) {
         return <Text>{Updater.statusText}</Text>;
     }
     // proceed with app...
 });
 ```
+
+The device id is sent to the update server as the `mus-device-id` expo-updates extra param (when `MUS_CHANNEL` is set). Never declare `mus-*` keys in `updates.requestHeaders` or call `setUpdateRequestHeadersOverride` for per-device values: it stamps downloaded updates and makes the embedded update unlaunchable.
 
 Defer updates during critical operations:
 ```typescript

@@ -5,13 +5,13 @@ Manages two kinds of app updates:
 - **OTA updates** via `expo-updates` — JavaScript bundle updates, checked on launch and when the app returns to the foreground.
 - **Native (app-store) updates** via the **Mobile Update Server (MUS)** — detects when a newer binary is available in the store and, when the server marks it required, forces the user to update.
 
-It also applies **device-targeted OTA request headers** (channel / device id) so the update server can target rollouts by channel and device.
+It also sends the **device id** to the update server as an expo-updates extra param (`mus-device-id`) so rollouts can be targeted by device, and holds a [launch gate](#launch-gate) so the app can wait for the launch update check.
 
 ## Usage
 
 The Updater runs automatically when initialized via `useSetupFoundation`. The `Updater._useHook()` is invoked at the start of `useSetupFoundation`, setting up the update-checking effects. In most cases you don't need to interact with it directly.
 
-To enable native-update checks, set `MUS_URL`, `MUS_APP_ID`, and `MUS_CHANNEL` in [env config](../guide/configuration#env). Device-targeted OTA request headers only require `MUS_CHANNEL`.
+To enable native-update checks, set `MUS_URL`, `MUS_APP_ID`, and `MUS_CHANNEL` in [env config](../guide/configuration#env). The device-id extra param only requires `MUS_CHANNEL`.
 
 ---
 
@@ -32,9 +32,9 @@ const UpdateBanner = observer(() => {
 ```
 
 Possible values:
-- `null` — no visible update activity (idle, timed out, or deferred)
+- `null` — no visible update activity (idle, timed out, or deferred), and the [launch gate](#launch-gate) is not held
 - `"Starting up..."` — expo-updates startup procedure running
-- `"Checking for updates..."` — checking with expo-updates
+- `"Checking for updates..."` — checking with expo-updates (also reported from launch until the launch check settles, even before the check has started)
 - `"Downloading update..."` — downloading OTA bundle
 - `"Installing update..."` — update pending, install scheduled
 - `"Restarting to install update..."` — reloading into the new bundle
@@ -178,14 +178,28 @@ Shows the global loader and never dismisses it. Used after the user acknowledges
 
 ---
 
-## Device-Targeted OTA Request Headers
+## Launch Gate
 
-When `MUS_CHANNEL` is set (and not in development), the Updater overrides the expo-updates request headers so the MUS can target OTA rollouts:
+From launch until the launch OTA check settles, `statusText` is non-null (`"Checking for updates..."` unless a more specific phase is showing). A Startup screen that proceeds once `Updater.statusText === null` therefore cannot race the launch check and then be reloaded mid-session. `statusText` is computed on read, so the held state is visible to the very first render.
 
-| Header | Value |
-|--------|-------|
-| `expo-channel-name` | `MUS_CHANNEL` |
-| `mus-device-id` | `AppMeta.deviceId` |
+- `Updater.isLaunchCheckPending` is `true` while the gate is held.
+- The gate applies only when OTA is enabled, not in development, and `launchUpdateGate` is not `false`. It requires `useSetupFoundation` (which starts the launch check).
+- The launch check starts immediately once the app is ready and active (no foreground settle delay). A launch in the background stays held, without checking, until the app becomes active.
+- The gate releases, permanently for that JS runtime, on the first of: no update available, check/fetch error, an update that can't be auto-installed (install-loop circuit open, emergency launch, reload-failure cap) or isn't new, updates being deferred (e.g. an active call), a failed reload, an initialization error, or a phase deadline: 3 s before the check starts, `updaterTimeout` (default 5 s) for the check, 10 s for the download, and the install settle plus 5 s for the reload. A successful install keeps the gate held because the runtime is replaced by the reload.
+- Each release logs `Launch update gate released` with the `reason` and `heldMs`.
+- Opt out with `launchUpdateGate: false` in the [foundation config](../guide/configuration).
+
+---
+
+## Device-Targeted OTA (Extra Params)
+
+When `MUS_CHANNEL` is set (and not in development), before each update check the Updater calls `Updates.setExtraParamAsync('mus-device-id', AppMeta.deviceId)`. expo-updates sends it to the update server as the `Expo-Extra-Params` header, so the MUS can target rollouts by device. The channel itself comes from the build-time `expo-channel-name` request header in the native config.
+
+::: warning Never use request-header overrides for per-device values
+Do not declare `mus-*` keys in `updates.requestHeaders`, and never call `Updates.setUpdateRequestHeadersOverride` for per-device values. expo-updates stamps downloaded updates with the live request headers and only launches updates whose stamp equals the live config, so an override makes the embedded update unlaunchable, causing emergency launches where the Updater refuses to install, so the update applies only on a later cold start. Extra params are not part of that stamp.
+
+The Updater never calls `setUpdateRequestHeadersOverride` and never clears an override persisted by an earlier version.
+:::
 
 ---
 
@@ -195,12 +209,12 @@ When `MUS_CHANNEL` is set (and not in development), the Updater overrides the ex
 
 When **not** in development mode, `_useHook` also:
 
-1. **On launch** — after `AppMeta.load()` completes, starts the MUS header sync and checks for an OTA update.
+1. **On launch** — after `AppMeta.load()` completes, checks for an OTA update (the [launch check](#launch-gate)); the device-id extra param is synced just before the check.
 2. **On foreground** — re-checks for OTA updates (`useAppActivatedEffect`).
 3. **On OTA download** — installs immediately, unless [deferred](#setupdatedeferrallistener-listener).
 
-In development mode, OTA checks, MUS request-header overrides, and OTA auto-install are skipped.
+In development mode, OTA checks, the device-id extra param, and OTA auto-install are skipped.
 
-The `updaterTimeout` config applies independently whenever the updater enters its startup/checking phase. Downloading has a separate 10-second timeout. Entering a new phase resets the deadline, while pending installation and restart never time out. A timeout only clears the user-facing status; it does not cancel the underlying work. A pending update may display as installing during Expo's native startup procedure, but automatic reload waits until that procedure finishes.
+The `updaterTimeout` config applies independently whenever the updater enters its startup/checking phase, and also bounds the launch check (default 5 s when unset). Downloading has a separate 10-second timeout. Entering a new phase resets the deadline, while pending installation and restart never time out. A timeout only clears the user-facing status; it does not cancel the underlying work. A pending update may display as installing during Expo's native startup procedure, but automatic reload waits until that procedure finishes.
 
-While `shouldDeferUpdate()` is true, `statusText` is immediately masked to `null`. An in-progress check or download may continue, but any scheduled install is canceled and remains pending. When deferral clears, the current unmasked status is restored and a pending install is scheduled again when safe.
+While `shouldDeferUpdate()` is true, `statusText` is immediately masked to `null` (and the launch gate is released). An in-progress check or download may continue, but any scheduled install is canceled and remains pending. When deferral clears, the current unmasked status is restored and a pending install is scheduled again when safe.

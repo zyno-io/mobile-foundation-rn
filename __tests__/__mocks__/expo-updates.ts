@@ -6,6 +6,7 @@ export const isEmergencyLaunch = false;
 export const emergencyLaunchReason = null;
 export const launchDuration = 100;
 export const runtimeVersion = '1.0.0';
+export const channel = 'chan-1';
 export enum UpdateInfoType {
     NEW = 'new',
     ROLLBACK = 'rollback',
@@ -14,6 +15,7 @@ export const checkForUpdateAsync = jest.fn(() => Promise.resolve({ isAvailable: 
 export const fetchUpdateAsync = jest.fn(() => Promise.resolve({ isNew: false }));
 export const reloadAsync = jest.fn(() => Promise.resolve());
 export const readLogEntriesAsync = jest.fn(() => Promise.resolve([]));
+export const getExtraParamsAsync = jest.fn(() => Promise.resolve({}));
 export const setExtraParamAsync = jest.fn(() => Promise.resolve());
 export const setUpdateRequestHeadersOverride = jest.fn();
 export const useUpdates = jest.fn(() => ({
