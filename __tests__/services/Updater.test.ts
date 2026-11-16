@@ -772,6 +772,38 @@ describe('Updater', () => {
             expect(Updater.statusText).toBeNull();
         });
 
+        it('re-evaluates statusText observers when the deferral listener is swapped', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = gateSetup();
+                const { render, React, Harness } = hookHarness();
+                Updater._releaseLaunchGate('test');
+                (Updates.useUpdates as jest.Mock).mockImplementation(() => ({
+                    isStartupProcedureRunning: false,
+                    isRestarting: false,
+                    isDownloading: true,
+                    isUpdatePending: false,
+                    isChecking: false,
+                    downloadedUpdate: undefined
+                }));
+                const view = render(React.createElement(Harness));
+                const seen: (string | null)[] = [];
+                const { autorun } = require('mobx');
+                const dispose = autorun(() => seen.push(Updater.statusText));
+                expect(seen).toEqual(['Downloading update...']);
+
+                Updater.setUpdateDeferralListener(() => true);
+                expect(seen[seen.length - 1]).toBeNull();
+
+                Updater.setUpdateDeferralListener(null);
+                expect(seen[seen.length - 1]).toBe('Downloading update...');
+                dispose();
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
         it('is never held in development, with OTA disabled, or when opted out', () => {
             const nodeEnv = process.env.NODE_ENV;
             process.env.NODE_ENV = 'development';

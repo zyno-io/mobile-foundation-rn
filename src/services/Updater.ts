@@ -51,6 +51,7 @@ const _unmaskedStatusText = observable.box<string | null>(null);
 /** Sticky for the JS runtime lifetime: once released, the launch gate never re-arms. */
 const _launchGateReleased = observable.box(false);
 const _nativeStatus = observable.box<INativeUpdateStatus | null>(null);
+const _deferralListener = observable.box<(() => boolean) | null>(null, { deep: false });
 
 function compareVersions(a: string, b: string): number {
   const ap = a.split(".").map((n) => parseInt(n, 10) || 0);
@@ -193,7 +194,14 @@ export const Updater = {
 
   _updateCheckPromise: null as Promise<boolean> | null,
   _foregroundUpdateTimeout: null as ReturnType<typeof setTimeout> | null,
-  _shouldDeferUpdate: null as (() => boolean) | null,
+  /** Backed by an observable box so swapping the listener re-evaluates observers
+   *  of `statusText` / `isLaunchCheckPending` (they read it on every access). */
+  get _shouldDeferUpdate(): (() => boolean) | null {
+    return _deferralListener.get();
+  },
+  set _shouldDeferUpdate(listener: (() => boolean) | null) {
+    runInAction(() => _deferralListener.set(listener));
+  },
   _installTimeout: null as ReturnType<typeof setTimeout> | null,
   _reloadInFlight: false,
   /** Resolves once _evaluateInstallCircuit has read persisted loop state, so
