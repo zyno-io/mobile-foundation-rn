@@ -21,6 +21,10 @@ const baseStatus = {
     storeUrl: 'https://store.test/app'
 };
 
+// Every Updater instance created by setup(); released in afterEach so a held launch-gate timer
+// from a real-timer test can't keep the Jest worker alive.
+const createdUpdaters: { _releaseLaunchGate: (reason: string) => void }[] = [];
+
 function setup(env: Record<string, string> = MUS_ENV) {
     jest.resetModules();
     jest.clearAllMocks();
@@ -30,6 +34,7 @@ function setup(env: Record<string, string> = MUS_ENV) {
     require('../../src/config').configureFoundation(createMockConfig({ env }));
 
     const { Updater } = require('../../src/services/Updater');
+    createdUpdaters.push(Updater);
     const { AppMeta } = require('../../src/services/AppMeta');
     const { LoaderState } = require('../../src/helpers/observable');
     return { Updates, Alert, Linking, Updater, AppMeta, LoaderState };
@@ -45,6 +50,7 @@ async function flushMicrotasks(times = 10) {
 
 describe('Updater', () => {
     afterEach(() => {
+        createdUpdaters.splice(0).forEach(u => u._releaseLaunchGate('test-cleanup'));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         delete (global as any).fetch;
     });
@@ -89,11 +95,12 @@ describe('Updater', () => {
             Object.defineProperty(Updates, 'isEnabled', { value: false, configurable: true });
             expect(await Updater.downloadUpdate()).toBe(false);
             await Updater.installUpdate();
-            await Updater._startHeadersSync();
+            await Updater._syncUpdateParams();
             expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
             expect(Updates.fetchUpdateAsync).not.toHaveBeenCalled();
             expect(Updates.reloadAsync).not.toHaveBeenCalled();
             expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
+            expect(Updates.setExtraParamAsync).not.toHaveBeenCalled();
         });
 
         it('skips a direct update request during a background cold start', async () => {
@@ -203,7 +210,7 @@ describe('Updater', () => {
                     isUpdatePending: false,
                     isChecking: false
                 });
-                require('../../src/config').configureFoundation(createMockConfig({ updaterTimeout: 4000 }));
+                require('../../src/config').configureFoundation(createMockConfig({ updaterTimeout: 4000, launchUpdateGate: false }));
 
                 function Harness() {
                     Updater._useHook(true);
@@ -278,7 +285,7 @@ describe('Updater', () => {
                 (Updates.useUpdates as jest.Mock).mockImplementation(() => updateState);
                 jest.spyOn(Updater, 'scheduleInstallUpdate').mockImplementation(() => undefined);
 
-                require('../../src/config').configureFoundation(createMockConfig({ updaterTimeout: 4000 }));
+                require('../../src/config').configureFoundation(createMockConfig({ updaterTimeout: 4000, launchUpdateGate: false }));
 
                 function Harness() {
                     Updater._useHook(true);
@@ -324,64 +331,474 @@ describe('Updater', () => {
         });
     });
 
-    describe('MUS request headers', () => {
-        it('applies channel and device headers', async () => {
-            const { Updater, Updates, AppMeta } = setup();
-            await AppMeta.load();
-            Updater._applyRequestHeaders();
-            expect(Updates.setUpdateRequestHeadersOverride).toHaveBeenCalledWith({
-                'expo-channel-name': 'chan-1',
-                'mus-device-id': 'unique-id-123'
+    describe('MUS device-id extra param', () => {
+        it('never overrides request headers (embedded, OTA, or emergency launches)', async () => {
+            for (const [embedded, emergency] of [
+                [true, false],
+                [false, false],
+                [true, true]
+            ]) {
+                const { Updater, Updates } = setup();
+                Object.defineProperty(Updates, 'isEmbeddedLaunch', { value: embedded, configurable: true });
+                Object.defineProperty(Updates, 'isEmergencyLaunch', { value: emergency, configurable: true });
+                await Updater.downloadUpdate();
+                await Updater._syncUpdateParams();
+                expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
+                expect(Updates.setExtraParamAsync).toHaveBeenCalledWith('mus-device-id', 'unique-id-123');
+            }
+        });
+
+        it('sets the extra param before checking for an update', async () => {
+            const { Updater, Updates } = setup();
+            await Updater.downloadUpdate();
+            expect(Updates.setExtraParamAsync).toHaveBeenCalledTimes(1);
+            expect(Updates.setExtraParamAsync).toHaveBeenCalledWith('mus-device-id', 'unique-id-123');
+            expect((Updates.setExtraParamAsync as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+                (Updates.checkForUpdateAsync as jest.Mock).mock.invocationCallOrder[0]
+            );
+        });
+
+        it('is memoized across checks', async () => {
+            const { Updater, Updates } = setup();
+            await Updater.downloadUpdate();
+            await Updater.downloadUpdate();
+            expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(2);
+            expect(Updates.setExtraParamAsync).toHaveBeenCalledTimes(1);
+        });
+
+        it('is skipped without a MUS channel', async () => {
+            const { Updater, Updates } = setup({ APP_ENV: 'test' });
+            await Updater.downloadUpdate();
+            expect(Updates.setExtraParamAsync).not.toHaveBeenCalled();
+            expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
+        });
+
+        it('is skipped in development', async () => {
+            const nodeEnv = process.env.NODE_ENV;
+            process.env.NODE_ENV = 'development';
+            try {
+                const { Updater, Updates } = setup();
+                await Updater._syncUpdateParams();
+                expect(Updates.setExtraParamAsync).not.toHaveBeenCalled();
+            } finally {
+                process.env.NODE_ENV = nodeEnv;
+            }
+        });
+
+        it('does not block the check when the param cannot be set, and retries next time', async () => {
+            const { Updater, Updates } = setup();
+            (Updates.setExtraParamAsync as jest.Mock).mockRejectedValueOnce(new Error('db busy'));
+            await Updater.downloadUpdate();
+            expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
+            await Updater.downloadUpdate();
+            expect(Updates.setExtraParamAsync).toHaveBeenCalledTimes(2);
+        });
+
+        it('a direct downloadUpdate() awaits the param before checking', async () => {
+            const { Updater, Updates } = setup();
+            let resolveParam: () => void = () => undefined;
+            (Updates.setExtraParamAsync as jest.Mock).mockImplementationOnce(
+                () => new Promise<void>(resolve => (resolveParam = resolve))
+            );
+            const pending = Updater.downloadUpdate();
+            await flushMicrotasks(30);
+            expect(Updates.setExtraParamAsync).toHaveBeenCalledTimes(1);
+            expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+            resolveParam();
+            await pending;
+            expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('launch gate', () => {
+        function gateSetup(env?: Record<string, string>) {
+            const ctx = setup(env);
+            const release = jest.spyOn(ctx.Updater, '_releaseLaunchGate');
+            const firstReason = () => release.mock.calls[0]?.[0];
+            const available = (id = 'update-2') => {
+                (ctx.Updates.checkForUpdateAsync as jest.Mock).mockResolvedValueOnce({ isAvailable: true, manifest: { id } });
+            };
+            const fetched = (id = 'update-2') => {
+                (ctx.Updates.fetchUpdateAsync as jest.Mock).mockResolvedValueOnce({ isNew: true, isRollBackToEmbedded: false, manifest: { id } });
+            };
+            return { ...ctx, release, firstReason, available, fetched };
+        }
+
+        function hookHarness() {
+            const React = require('react');
+            const { render, act } = require('@testing-library/react-native/pure');
+            const { Updater } = require('../../src/services/Updater');
+            function Harness() {
+                Updater._useHook(true);
+                return null;
+            }
+            return { React, render, act, Harness };
+        }
+
+        function captureAppState() {
+            const { AppState } = require('react-native');
+            const listeners: ((state: string) => void)[] = [];
+            AppState.addEventListener.mockImplementation((_event: string, listener: (state: string) => void) => {
+                listeners.push(listener);
+                return { remove: jest.fn() };
             });
+            return {
+                AppState,
+                emit: (state: string) => {
+                    AppState.currentState = state;
+                    listeners.forEach(listener => listener(state));
+                }
+            };
+        }
+
+        it('holds a non-null status before the check starts', () => {
+            const { Updater } = gateSetup();
+            expect(Updater.isLaunchCheckPending).toBe(true);
+            expect(Updater.statusText).toBe('Checking for updates...');
         });
 
-        it('starts header sync on embedded launches when a MUS channel is configured', async () => {
-            const { Updater, Updates } = setup();
-            Object.defineProperty(Updates, 'isEmbeddedLaunch', { value: true, configurable: true });
-            await Updater._startHeadersSync();
-            expect(Updates.setUpdateRequestHeadersOverride).toHaveBeenCalledWith({
-                'expo-channel-name': 'chan-1',
-                'mus-device-id': 'unique-id-123'
-            });
+        it('releases on no-update', async () => {
+            const { Updater, firstReason } = gateSetup();
+            await Updater.downloadUpdate();
+            expect(firstReason()).toBe('no-update');
+            expect(Updater.isLaunchCheckPending).toBe(false);
+            expect(Updater.statusText).toBeNull();
         });
 
-        it('preserves existing header overrides on OTA launches', async () => {
-            const { Updater, Updates } = setup();
-            await Updater._startHeadersSync();
-            expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
+        it('releases on check-error', async () => {
+            const { Updater, Updates, firstReason } = gateSetup();
+            (Updates.checkForUpdateAsync as jest.Mock).mockRejectedValueOnce(new Error('offline'));
+            await Updater.downloadUpdate();
+            expect(firstReason()).toBe('check-error');
+            expect(Updater.statusText).toBeNull();
         });
 
-        it('preserves existing header overrides on emergency launches', async () => {
-            const { Updater, Updates } = setup();
-            Object.defineProperty(Updates, 'isEmbeddedLaunch', { value: true, configurable: true });
-            Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
-            await Updater._startHeadersSync();
-            expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
+        it('releases on fetch-not-new', async () => {
+            const { Updater, available, firstReason } = gateSetup();
+            available();
+            await Updater.downloadUpdate();
+            expect(firstReason()).toBe('fetch-not-new');
         });
 
-        it('does not start header sync without a MUS channel', () => {
-            const { Updater, Updates } = setup({ APP_ENV: 'test' }); // no MUS_CHANNEL
-            Updater._startHeadersSync();
-            expect(Updates.setUpdateRequestHeadersOverride).not.toHaveBeenCalled();
+        it('releases on fetch-error', async () => {
+            const { Updater, Updates, available, firstReason } = gateSetup();
+            available();
+            (Updates.fetchUpdateAsync as jest.Mock).mockRejectedValueOnce(new Error('boom'));
+            await Updater.downloadUpdate();
+            expect(firstReason()).toBe('fetch-error');
         });
 
-        it('does not recheck or cancel a scheduled install when headers are applied', async () => {
+        it('stays held after an installable fetch (the reload is expected)', async () => {
+            const { Updater, available, fetched, release } = gateSetup();
+            available();
+            fetched();
+            expect(await Updater.downloadUpdate()).toBe(true);
+            expect(release).not.toHaveBeenCalled();
+            expect(Updater.isLaunchCheckPending).toBe(true);
+        });
+
+        it('releases with install-timeout if the reload never happens', async () => {
             jest.useFakeTimers();
             try {
-                const { Updater, Updates, AppMeta } = setup();
-                await AppMeta.load();
-
-                Updater.scheduleInstallUpdate('generic-update', 250);
-                Updater._applyRequestHeaders();
-
-                expect(Updater._installTimeout).not.toBeNull();
-                expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
-                jest.advanceTimersByTime(250);
-                await flushMicrotasks();
-                expect(Updates.reloadAsync).toHaveBeenCalledTimes(1);
+                const { Updater, available, fetched, firstReason } = gateSetup();
+                available();
+                fetched();
+                await Updater.downloadUpdate();
+                jest.advanceTimersByTime(6499);
+                expect(Updater.isLaunchCheckPending).toBe(true);
+                jest.advanceTimersByTime(1);
+                expect(firstReason()).toBe('install-timeout');
             } finally {
                 jest.useRealTimers();
             }
+        });
+
+        it('releases before the download on an emergency launch with an unknown failed id', async () => {
+            const { Updater, Updates, available, firstReason } = gateSetup();
+            Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true });
+            Object.defineProperty(Updates, 'isEmbeddedLaunch', { value: true, configurable: true });
+            Updater._installCircuitReady = Promise.resolve();
+            available();
+            (Updates.fetchUpdateAsync as jest.Mock).mockImplementationOnce(() => new Promise(() => undefined));
+            void Updater.downloadUpdate();
+            await flushMicrotasks(40);
+            expect(Updates.fetchUpdateAsync).toHaveBeenCalledTimes(1);
+            expect(firstReason()).toBe('install-blocked');
+            expect(Updater.isLaunchCheckPending).toBe(false);
+        });
+
+        it('releases with install-blocked when the fetched target is not auto-installable', async () => {
+            const { Updater, available, fetched, firstReason } = gateSetup();
+            Updater._circuitOpen = true;
+            Updater._suppressedUpdateId = 'update-2';
+            available('update-3'); // prospective target looks fine...
+            fetched('update-2'); // ...but the fetched one is the looping update
+            await Updater.downloadUpdate();
+            expect(firstReason()).toBe('install-blocked');
+        });
+
+        it('releases when installUpdate bails out', async () => {
+            const cases: [string, (ctx: ReturnType<typeof gateSetup>) => void][] = [
+                ['install-circuit-open', ({ Updater }) => { Updater._circuitOpen = true; Updater._suppressedUpdateId = 'u'; }],
+                ['install-emergency-launch', ({ Updates }) => Object.defineProperty(Updates, 'isEmergencyLaunch', { value: true, configurable: true })],
+                ['install-reload-failures', ({ Updater }) => { Updater._reloadFailures = 3; }],
+                ['install-deferred', ({ Updater }) => { Updater._shouldDeferUpdate = () => true; }]
+            ];
+            for (const [reason, arrange] of cases) {
+                const ctx = gateSetup();
+                arrange(ctx);
+                await ctx.Updater.installUpdate('u');
+                expect(ctx.firstReason()).toBe(reason);
+                expect(ctx.Updates.reloadAsync).not.toHaveBeenCalled();
+            }
+        });
+
+        it('releases with reload-failed when reloadAsync throws', async () => {
+            const { Updater, Updates, firstReason } = gateSetup();
+            (Updates.reloadAsync as jest.Mock).mockRejectedValueOnce(new Error('appContext not set'));
+            await Updater.installUpdate('u');
+            expect(firstReason()).toBe('reload-failed');
+        });
+
+        it('stays held after a successful reload dispatch', async () => {
+            const { Updater, Updates, release } = gateSetup();
+            await Updater.installUpdate('u');
+            expect(Updates.reloadAsync).toHaveBeenCalledTimes(1);
+            expect(release).not.toHaveBeenCalled();
+            expect(Updater.isLaunchCheckPending).toBe(true);
+        });
+
+        it('stays held when the app is not active or not ready', async () => {
+            const { Updater, Updates, release } = gateSetup();
+            require('react-native').AppState.currentState = 'background';
+            expect(await Updater.downloadUpdate()).toBe(false);
+            await Updater.installUpdate('u');
+            Updater._appReady = false;
+            require('react-native').AppState.currentState = 'active';
+            expect(await Updater.downloadUpdate()).toBe(false);
+            await Updater.installUpdate('u');
+            expect(release).not.toHaveBeenCalled();
+            expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+            expect(Updater.statusText).toBe('Checking for updates...');
+        });
+
+        it('releases on check-timeout, then handles a late result normally', async () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates, release, firstReason } = gateSetup();
+                let resolveCheck: (v: unknown) => void = () => undefined;
+                (Updates.checkForUpdateAsync as jest.Mock).mockImplementationOnce(() => new Promise(resolve => (resolveCheck = resolve)));
+                (Updates.fetchUpdateAsync as jest.Mock).mockResolvedValueOnce({ isNew: true, isRollBackToEmbedded: false, manifest: { id: 'late-update' } });
+
+                const pending = Updater.downloadUpdate();
+                await flushMicrotasks(40);
+                expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
+                jest.advanceTimersByTime(4999);
+                expect(Updater.isLaunchCheckPending).toBe(true);
+                jest.advanceTimersByTime(1);
+                expect(firstReason()).toBe('check-timeout');
+                expect(Updater.statusText).toBeNull();
+
+                resolveCheck({ isAvailable: true, manifest: { id: 'late-update' } });
+                expect(await pending).toBe(true);
+                expect(Updater._lastDownloadedInstallTarget).toBe('late-update');
+                expect(release.mock.calls.filter(c => c[0] !== 'check-timeout' && c[0] !== 'deferred')).toEqual([]);
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('uses updaterTimeout as the launch check deadline', async () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates, firstReason } = gateSetup();
+                require('../../src/config').configureFoundation(createMockConfig({ env: MUS_ENV, updaterTimeout: 4000 }));
+                (Updates.checkForUpdateAsync as jest.Mock).mockImplementationOnce(() => new Promise(() => undefined));
+                void Updater.downloadUpdate();
+                await flushMicrotasks(40);
+                jest.advanceTimersByTime(3999);
+                expect(Updater.isLaunchCheckPending).toBe(true);
+                jest.advanceTimersByTime(1);
+                expect(firstReason()).toBe('check-timeout');
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('releases on precheck-timeout and init-error from the hook', async () => {
+            jest.useFakeTimers();
+            try {
+                const a = gateSetup();
+                const { render, React, Harness } = hookHarness();
+                jest.spyOn(a.AppMeta, 'load').mockImplementation(() => new Promise(() => undefined));
+                const view = render(React.createElement(Harness));
+                jest.advanceTimersByTime(2999);
+                expect(a.Updater.isLaunchCheckPending).toBe(true);
+                jest.advanceTimersByTime(1);
+                expect(a.firstReason()).toBe('precheck-timeout');
+                view.unmount();
+
+                const b = gateSetup();
+                jest.spyOn(b.AppMeta, 'load').mockRejectedValue(new Error('no device id'));
+                const h2 = hookHarness();
+                const view2 = h2.render(h2.React.createElement(h2.Harness));
+                await flushMicrotasks(20);
+                expect(b.firstReason()).toBe('init-error');
+                view2.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('starts the launch check immediately from the hook', async () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = gateSetup();
+                const { render, React, Harness } = hookHarness();
+                jest.spyOn(Updater, 'loadNativeStatus').mockResolvedValue(undefined);
+                const view = render(React.createElement(Harness));
+                await flushMicrotasks(30);
+                jest.advanceTimersByTime(0);
+                await flushMicrotasks(30);
+                expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('non-launch foreground checks still wait for the settle delay', async () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = gateSetup();
+                const { render, React, Harness } = hookHarness();
+                jest.spyOn(Updater, 'loadNativeStatus').mockResolvedValue(undefined);
+                Updater._releaseLaunchGate('test');
+                const view = render(React.createElement(Harness));
+                await flushMicrotasks(30);
+                jest.advanceTimersByTime(499);
+                await flushMicrotasks(30);
+                expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+                jest.advanceTimersByTime(1);
+                await flushMicrotasks(30);
+                expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('a background launch stays held and does not check until active', async () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates, release } = gateSetup();
+                const { render, act, React, Harness } = hookHarness();
+                const { AppState, emit } = captureAppState();
+                AppState.currentState = 'background';
+                jest.spyOn(Updater, 'loadNativeStatus').mockResolvedValue(undefined);
+                const view = render(React.createElement(Harness));
+                await flushMicrotasks(30);
+                jest.advanceTimersByTime(20_000);
+                await flushMicrotasks(30);
+                expect(Updates.checkForUpdateAsync).not.toHaveBeenCalled();
+                expect(release).not.toHaveBeenCalled();
+                expect(Updater.statusText).toBe('Checking for updates...');
+
+                act(() => emit('active'));
+                await flushMicrotasks(30);
+                jest.advanceTimersByTime(0);
+                await flushMicrotasks(30);
+                expect(Updates.checkForUpdateAsync).toHaveBeenCalledTimes(1);
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('never reports a null status across checking, downloading and installing', () => {
+            jest.useFakeTimers();
+            try {
+                const { Updater, Updates } = gateSetup();
+                const { render, React, Harness } = hookHarness();
+                jest.spyOn(Updater, 'scheduleInstallUpdate').mockImplementation(() => undefined);
+                const base = {
+                    isStartupProcedureRunning: false,
+                    isRestarting: false,
+                    isDownloading: false,
+                    isUpdatePending: false,
+                    isChecking: false,
+                    downloadedUpdate: undefined as { updateId: string } | undefined
+                };
+                let state = { ...base };
+                (Updates.useUpdates as jest.Mock).mockImplementation(() => state);
+                const seen: (string | null)[] = [];
+                const { autorun } = require('mobx');
+                const dispose = autorun(() => seen.push(Updater.statusText));
+
+                const view = render(React.createElement(Harness));
+                for (const next of [
+                    { ...base, isChecking: true },
+                    { ...base }, // gap between phases
+                    { ...base, isDownloading: true },
+                    { ...base }, // gap between phases
+                    { ...base, isUpdatePending: true, downloadedUpdate: { updateId: 'update-2' } }
+                ]) {
+                    state = next;
+                    view.rerender(React.createElement(Harness));
+                }
+                dispose();
+                expect(seen.length).toBeGreaterThan(1);
+                expect(seen).not.toContain(null);
+                expect(Updater.statusText).toBe('Installing update...');
+                view.unmount();
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+
+        it('releases on deferral and stays released after the deferral clears', () => {
+            const { Updater, firstReason } = gateSetup();
+            const { observable, runInAction } = require('mobx');
+            const deferred = observable.box(false);
+            Updater.setUpdateDeferralListener(() => deferred.get());
+            expect(Updater.statusText).toBe('Checking for updates...');
+
+            runInAction(() => deferred.set(true));
+            expect(firstReason()).toBe('deferred');
+            expect(Updater.statusText).toBeNull();
+
+            runInAction(() => deferred.set(false));
+            expect(Updater.isLaunchCheckPending).toBe(false);
+            expect(Updater.statusText).toBeNull();
+        });
+
+        it('is never held in development, with OTA disabled, or when opted out', () => {
+            const nodeEnv = process.env.NODE_ENV;
+            process.env.NODE_ENV = 'development';
+            try {
+                const { Updater } = gateSetup();
+                expect(Updater.isLaunchCheckPending).toBe(false);
+                expect(Updater.statusText).toBeNull();
+            } finally {
+                process.env.NODE_ENV = nodeEnv;
+            }
+
+            const disabled = gateSetup();
+            Object.defineProperty(disabled.Updates, 'isEnabled', { value: false, configurable: true });
+            expect(disabled.Updater.isLaunchCheckPending).toBe(false);
+            expect(disabled.Updater.statusText).toBeNull();
+
+            const optedOut = gateSetup();
+            require('../../src/config').configureFoundation(createMockConfig({ env: MUS_ENV, launchUpdateGate: false }));
+            expect(optedOut.Updater.isLaunchCheckPending).toBe(false);
+            expect(optedOut.Updater.statusText).toBeNull();
+        });
+
+        it('releases with disabled when a check is requested with OTA disabled', async () => {
+            const { Updater, Updates, firstReason } = gateSetup();
+            Object.defineProperty(Updates, 'isEnabled', { value: false, configurable: true });
+            await Updater.downloadUpdate();
+            expect(firstReason()).toBe('disabled');
         });
     });
 

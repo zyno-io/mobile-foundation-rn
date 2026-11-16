@@ -46,6 +46,7 @@ interface FoundationConfig {
     };
     fonts?: Record<string, any>;
     updaterTimeout?: number;
+    launchUpdateGate?: boolean;
     requireProtectedDataAvailability?: boolean;
     statusBar?: {
         barStyle: StatusBarStyle | 'auto';
@@ -77,7 +78,7 @@ Environment variables used by services:
 | `MUS_APP_ID` | Updater | MUS application id used in the native-status endpoint path |
 | `MUS_CHANNEL` | Updater | Release channel; sent as the `expo-channel-name` OTA header and in the native-status query |
 
-The three `MUS_*` keys are required together for [native (app-store) update checks](../api/updater#native-app-store-updates). If any of them is missing, native-update checking is disabled (a no-op) and the related `Updater` accessors return their empty values. Device-targeted OTA request headers only require `MUS_CHANNEL`.
+The three `MUS_*` keys are required together for [native (app-store) update checks](../api/updater#native-app-store-updates). If any of them is missing, native-update checking is disabled (a no-op) and the related `Updater` accessors return their empty values. The device-id extra param sent with OTA checks only requires `MUS_CHANNEL`.
 
 ### `icons`
 
@@ -92,7 +93,11 @@ Optional custom font map passed to `expo-font` during setup. Loaded by `useSetup
 
 ### `updaterTimeout`
 
-Timeout in milliseconds for each OTA startup/checking phase. Entering checking starts a fresh timer. Downloading starts a separate 10-second timer, while pending installation and restart have no timeout. When a phase times out, the update status UI is cleared, though the underlying work may still complete in the background; entering a new phase makes that phase visible and starts its own timer.
+Timeout in milliseconds for each OTA startup/checking phase. Entering checking starts a fresh timer. Downloading starts a separate 10-second timer, while pending installation and restart have no timeout. When a phase times out, the update status UI is cleared, though the underlying work may still complete in the background; entering a new phase makes that phase visible and starts its own timer. It also bounds the launch update check (default 5000 ms when unset) for the [launch gate](../api/updater#launch-gate).
+
+### `launchUpdateGate`
+
+Default `true`. Keeps `Updater.statusText` non-null from launch until the launch OTA check settles, so a Startup screen gated on `statusText === null` can't race the check. Set `false` to opt out. See the [launch gate](../api/updater#launch-gate).
 
 ### `requireProtectedDataAvailability`
 

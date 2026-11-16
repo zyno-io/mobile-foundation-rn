@@ -4,7 +4,7 @@ import { autorun, observable, runInAction } from "mobx";
 import { useEffect, useState } from "react";
 import { Alert, AppState, Linking, Platform } from "react-native";
 
-import { getFoundationConfig } from "../config";
+import { getFoundationConfig, getFoundationConfigIfConfigured } from "../config";
 import { LoaderState } from "../helpers/observable";
 import { withProtectedDataRecovery } from "../helpers/protectedData";
 import { useAppStateEffect } from "../hooks/useAppStateEffect";
@@ -45,9 +45,11 @@ export interface INativeUpdateStatus {
   storeUrl: string;
 }
 
-const _statusText = observable.box<string | null>(null);
-/** Current updater status before user-facing deferral masking is applied. */
+/** Current updater status before user-facing deferral masking / launch-gate fallback is applied.
+ *  `Updater.statusText` is computed from this on read. */
 const _unmaskedStatusText = observable.box<string | null>(null);
+/** Sticky for the JS runtime lifetime: once released, the launch gate never re-arms. */
+const _launchGateReleased = observable.box(false);
 const _nativeStatus = observable.box<INativeUpdateStatus | null>(null);
 
 function compareVersions(a: string, b: string): number {
@@ -65,7 +67,9 @@ function compareVersions(a: string, b: string): number {
 let _nativeAlertShown = false;
 let _nativeWatchStarted = false;
 let _nativeAppStateListenerStarted = false;
-let _headersSyncPromise: Promise<void> | null = null;
+let _updateParamsPromise: Promise<void> | null = null;
+let _launchGateTimer: ReturnType<typeof setTimeout> | null = null;
+let _channelMismatchWarned = false;
 let _installDeferralDisposer: (() => void) | null = null;
 
 // --- Auto-install safety / downgrade-loop hardening -------------------------
@@ -82,6 +86,13 @@ const INSTALL_SETTLE_MS = 1500;
 const FOREGROUND_UPDATE_SETTLE_MS = 500;
 /** Downloading gets its own deadline; entering the phase always starts a fresh timer. */
 const DOWNLOAD_STATUS_TIMEOUT_MS = 10_000;
+/** Launch gate: budget for everything before the check starts (AppMeta load, settle, params sync). */
+const LAUNCH_GATE_PRECHECK_MS = 3000;
+/** Launch gate: default budget for the launch check when `updaterTimeout` is unset. */
+const LAUNCH_CHECK_TIMEOUT_MS = 5000;
+/** Launch gate: extra budget (beyond the install settle) for the reload to tear the runtime down. */
+const LAUNCH_GATE_INSTALL_GRACE_MS = 5000;
+const LAUNCH_GATE_STATUS_TEXT = "Checking for updates...";
 /** Consecutive install attempts (within the window) that revert to the embedded
  *  bundle before we stop auto-installing and leave the user on what works. */
 const INSTALL_LOOP_MAX = 3;
@@ -99,11 +110,37 @@ type UpdaterStatusPhase =
   | "installing"
   | "restarting";
 
+type LaunchGatePhase = "precheck" | "check" | "download" | "install";
+
 function setUpdaterStatusText(text: string | null) {
   runInAction(() => {
     _unmaskedStatusText.set(text);
-    _statusText.set(Updater.shouldDeferUpdate() ? null : text);
   });
+}
+
+/** The gate only applies to OTA-capable production launches that haven't opted out. */
+function isLaunchGateApplicable(): boolean {
+  return (
+    !AppMeta.isDevelopment &&
+    Updates.isEnabled &&
+    (getFoundationConfigIfConfigured()?.launchUpdateGate ?? true)
+  );
+}
+
+function clearLaunchGateTimer() {
+  if (!_launchGateTimer) return;
+  clearTimeout(_launchGateTimer);
+  _launchGateTimer = null;
+}
+
+/** (Re)arm the single gate deadline for a phase. No-op once released. */
+function armLaunchGateTimer(phase: LaunchGatePhase, ms: number) {
+  clearLaunchGateTimer();
+  if (_launchGateReleased.get() || !isLaunchGateApplicable()) return;
+  _launchGateTimer = setTimeout(() => {
+    _launchGateTimer = null;
+    Updater._releaseLaunchGate(`${phase}-timeout`);
+  }, ms);
 }
 
 function describeUpdateError(err: unknown) {
@@ -122,8 +159,36 @@ export const Updater = {
   // OTA updates
   // ===================================================================
 
+  /**
+   * Current updater status, computed on read. While the launch gate is held (and
+   * updates aren't deferred) this is never null, so a Startup screen that proceeds
+   * on `statusText === null` cannot race the launch update check. Computed rather
+   * than effect-armed because Startup's effects run before the foundation hook's.
+   */
   get statusText(): string | null {
-    return _statusText.get();
+    if (Updater.shouldDeferUpdate()) return null;
+    return _unmaskedStatusText.get() ?? (Updater.isLaunchCheckPending ? LAUNCH_GATE_STATUS_TEXT : null);
+  },
+
+  /** True from launch until the launch update check settles (or a release condition
+   *  fires). Always false in dev, with OTA disabled, with `launchUpdateGate: false`,
+   *  and while updates are deferred. */
+  get isLaunchCheckPending(): boolean {
+    return isLaunchGateApplicable() && !_launchGateReleased.get() && !Updater.shouldDeferUpdate();
+  },
+
+  /** @internal Idempotent; releases the launch gate for the rest of the JS runtime. */
+  _releaseLaunchGate(reason: string, extra?: Record<string, unknown>) {
+    if (_launchGateReleased.get()) return;
+    clearLaunchGateTimer();
+    const applicable = isLaunchGateApplicable();
+    runInAction(() => _launchGateReleased.set(true));
+    if (!applicable) return;
+    logger.info("Launch update gate released", {
+      reason,
+      heldMs: Date.now() - AppMeta.launchTs,
+      ...extra,
+    });
   },
 
   _updateCheckPromise: null as Promise<boolean> | null,
@@ -193,8 +258,22 @@ export const Updater = {
         launchDuration: Updates.launchDuration,
         runtimeVersion: Updates.runtimeVersion,
         updateId: Updates.updateId,
+        channel: Updates.channel,
       });
 
+      const configuredChannel = getFoundationConfig().env.MUS_CHANNEL;
+      if (
+        !_channelMismatchWarned &&
+        configuredChannel &&
+        Updates.channel &&
+        configuredChannel.toLowerCase() !== Updates.channel.toLowerCase()
+      ) {
+        _channelMismatchWarned = true;
+        logger.warn("expo-updates channel differs from MUS_CHANNEL", {
+          channel: Updates.channel,
+          musChannel: configuredChannel,
+        });
+      }
     }, []);
 
     useEffect(() => {
@@ -228,15 +307,18 @@ export const Updater = {
         // captured — it never reaches the JS logger otherwise.
         void Updater._logNativeUpdateLog();
 
-        // Device-targeted OTA request headers (OTA-only -> after the dev gate). Register
-        // before the first check so AppMeta.load() applies headers first.
-        Updater._startHeadersSync();
+        // Bound everything before the launch check starts; re-armed per phase.
+        armLaunchGateTimer("precheck", LAUNCH_GATE_PRECHECK_MS);
 
         AppMeta.load()
-          .then(() => Updater._startHeadersSync())
           .then(() => {
-            Updater.scheduleForegroundUpdateCheck();
-          }).catch(error => logger.error("Failed to initialize update checks", error));
+            // The launch check runs without the foreground settle delay.
+            Updater.scheduleForegroundUpdateCheck(Updater.isLaunchCheckPending ? 0 : undefined);
+          })
+          .catch(error => {
+            logger.error("Failed to initialize update checks", error);
+            Updater._releaseLaunchGate("init-error");
+          });
       };
       const subscription = AppState.addEventListener("change", state => {
         if (state === "active") start();
@@ -248,7 +330,7 @@ export const Updater = {
     if (!AppMeta.isDevelopment && Updates.isEnabled) {
       useAppStateEffect((state) => {
         if (state === "active") {
-          Updater.scheduleForegroundUpdateCheck();
+          Updater.scheduleForegroundUpdateCheck(Updater.isLaunchCheckPending ? 0 : undefined);
           Updater._trySchedulePendingInstall();
         } else {
           Updater._cancelScheduledUpdateCheck();
@@ -361,33 +443,107 @@ export const Updater = {
     return true;
   },
 
+  /**
+   * Idempotent, memoized (reset on failure) sync of the device id into expo-updates'
+   * extra params, sent to MUS as `Expo-Extra-Params`. Extra params are not part of
+   * update-row stamping (unlike request headers), so they never affect launchability.
+   * Never blocks the check: failures only warn.
+   *
+   * NOTE: we deliberately never call `setUpdateRequestHeadersOverride`, and never
+   * clear an override a previous version persisted. Overrides stamp downloaded
+   * updates with the live headers and only rows whose stamp equals the live config
+   * are launchable. Clearing an old override on an old binary leaves existing rows
+   * with their old stamp (embedded launch -> "new" fetch -> reload loop); on a new
+   * binary it makes expo-updates' BuildData consistency check wipe all updates.
+   */
+  _syncUpdateParams(): Promise<void> {
+    if (AppMeta.isDevelopment || !Updates.isEnabled || !getFoundationConfig().env.MUS_CHANNEL) {
+      return Promise.resolve();
+    }
+    if (_updateParamsPromise) return _updateParamsPromise;
+    const promise: Promise<void> = (async () => {
+      await AppMeta.load();
+      if (AppMeta.deviceId) await Updates.setExtraParamAsync("mus-device-id", AppMeta.deviceId);
+    })().catch((err) => {
+      logger.warn("Failed to sync update params", describeUpdateError(err));
+      if (_updateParamsPromise === promise) _updateParamsPromise = null;
+    });
+    _updateParamsPromise = promise;
+    return promise;
+  },
+
+  /** True when an install of `target` is blocked for a reason that won't resolve by
+   *  waiting (not merely "app not active / not ready"). */
+  async _isInstallHardBlocked(target: UpdateInstallTarget): Promise<boolean> {
+    if (Updater._installCircuitReady) await Updater._installCircuitReady;
+    if (!Updater._appReady || AppState.currentState !== "active") return false;
+    return !Updater._canAutoInstallPendingUpdate(target, false, true);
+  },
+
   async _downloadUpdate() {
-    if (!Updates.isEnabled || !Updater._appReady || AppState.currentState !== "active") return false;
+    if (!Updates.isEnabled) {
+      Updater._releaseLaunchGate("disabled");
+      return false;
+    }
+    // Not ready / not active keep the launch gate held; the foreground check retries.
+    if (!Updater._appReady || AppState.currentState !== "active") return false;
     if (Updater.shouldDeferUpdate()) {
       logger.info("Skipping update check (deferred)");
+      Updater._releaseLaunchGate("deferred");
       return false;
     }
 
+    // Any check reaching this point while the gate is held IS the launch check;
+    // every release/arm below is a no-op once the gate has been released.
+    await Updater._syncUpdateParams();
+
     try {
       logger.info("Performing update check");
+      armLaunchGateTimer("check", getFoundationConfig().updaterTimeout ?? LAUNCH_CHECK_TIMEOUT_MS);
       const result = await Updates.checkForUpdateAsync();
       logger.info("Update check result", result);
-      if (!result.isAvailable && !result.isRollBackToEmbedded) return false;
+      if (!result.isAvailable && !result.isRollBackToEmbedded) {
+        Updater._releaseLaunchGate("no-update");
+        return false;
+      }
+      // Fail fast (e.g. emergency launch where the install would be suppressed)
+      // instead of making Startup wait on a download that can't be applied. The
+      // fetch still proceeds, ungated, so a later install path can use it.
+      const prospectiveId = "manifest" in result ? result.manifest?.id : undefined;
+      const prospective: UpdateInstallTarget = result.isRollBackToEmbedded
+        ? EMBEDDED_ROLLBACK
+        : typeof prospectiveId === "string" && prospectiveId.length > 0
+          ? prospectiveId
+          : null;
+      if (await Updater._isInstallHardBlocked(prospective)) {
+        Updater._releaseLaunchGate("install-blocked", { phase: "check" });
+      }
     } catch (err) {
       // Update checks are opportunistic. Network interruption while iOS moves the
       // app to the background is expected and should remain telemetry, not an
       // application exception in crash reporting.
       logger.warn("Failed to check for updates", describeUpdateError(err));
+      Updater._releaseLaunchGate("check-error");
       return false;
     }
 
     try {
+      armLaunchGateTimer("download", DOWNLOAD_STATUS_TIMEOUT_MS);
       const result = await Updates.fetchUpdateAsync();
       logger.info("Update fetch result", result);
       Updater._lastDownloadedInstallTarget = fetchedInstallTarget(result);
-      if (!Updater._lastDownloadedInstallTarget) return false;
+      if (!Updater._lastDownloadedInstallTarget) {
+        Updater._releaseLaunchGate("fetch-not-new");
+        return false;
+      }
+      if (await Updater._isInstallHardBlocked(Updater._lastDownloadedInstallTarget)) {
+        Updater._releaseLaunchGate("install-blocked", { phase: "fetch" });
+      } else {
+        armLaunchGateTimer("install", INSTALL_SETTLE_MS + LAUNCH_GATE_INSTALL_GRACE_MS);
+      }
     } catch (err) {
       logger.warn("Failed to download update", describeUpdateError(err));
+      Updater._releaseLaunchGate("fetch-error");
       return false;
     }
 
@@ -422,7 +578,10 @@ export const Updater = {
     if (!Updates.isEnabled) return;
     const resolvedTarget = Updater._resolvePendingInstallTarget(pendingTarget);
 
-    if (isEmbeddedRollback(resolvedTarget) && Updates.isEmbeddedLaunch) return;
+    if (isEmbeddedRollback(resolvedTarget) && Updates.isEmbeddedLaunch) {
+      Updater._releaseLaunchGate("install-rollback-noop");
+      return;
+    }
 
     // Synchronous re-entrancy guard: set before any await so a second call
     // (e.g. a re-scheduled timeout) bails out immediately.
@@ -437,6 +596,7 @@ export const Updater = {
         pendingTarget: resolvedTarget,
       });
       Updater._reloadInFlight = false;
+      Updater._releaseLaunchGate("install-circuit-open");
       return;
     }
     // On a recovery launch, allow an explicit embedded rollback or a known
@@ -451,6 +611,7 @@ export const Updater = {
         suppressedUpdateId: Updater._suppressedUpdateId,
       });
       Updater._reloadInFlight = false;
+      Updater._releaseLaunchGate("install-emergency-launch");
       return;
     }
     if (Updater._reloadFailures >= INSTALL_LOOP_MAX) {
@@ -458,11 +619,13 @@ export const Updater = {
         failures: Updater._reloadFailures,
       });
       Updater._reloadInFlight = false;
+      Updater._releaseLaunchGate("install-reload-failures");
       return;
     }
     if (Updater.shouldDeferUpdate()) {
       logger.info("Deferring update install");
       Updater._reloadInFlight = false;
+      Updater._releaseLaunchGate("install-deferred");
       return;
     }
     if (!Updater._appReady) {
@@ -489,6 +652,7 @@ export const Updater = {
       logger.info("Deferring update install");
       if (!isRollback) await Updater._undoInstallAttempt(attemptedUpdateId);
       Updater._reloadInFlight = false;
+      Updater._releaseLaunchGate("install-deferred");
       return;
     }
     if (!Updater._appReady) {
@@ -517,6 +681,7 @@ export const Updater = {
       // The reload didn't happen, so don't let it inflate the loop counter.
       if (!isRollback) await Updater._undoInstallAttempt(attemptedUpdateId);
       logger.error("Failed to install update", err);
+      Updater._releaseLaunchGate("reload-failed");
     }
   },
 
@@ -554,11 +719,9 @@ export const Updater = {
     _installDeferralDisposer?.();
     _installDeferralDisposer = autorun(() => {
       const deferred = Updater.shouldDeferUpdate();
-      runInAction(() => {
-        _statusText.set(deferred ? null : _unmaskedStatusText.get());
-      });
       if (deferred) {
         Updater._cancelScheduledInstall();
+        Updater._releaseLaunchGate("deferred");
         return;
       }
       Updater._trySchedulePendingInstall();
@@ -803,41 +966,6 @@ export const Updater = {
       });
     } catch (err) {
       logger.warn("Failed to read expo-updates database diagnostics", describeUpdateError(err));
-    }
-  },
-
-  // ===================================================================
-  // Device-targeted OTA request headers (channel / device)
-  // ===================================================================
-
-  _startHeadersSync(): Promise<void> {
-    if (AppMeta.isDevelopment || !Updates.isEnabled) return Promise.resolve();
-    if (_headersSyncPromise) return _headersSyncPromise;
-    if (!getFoundationConfig().env.MUS_CHANNEL) return Promise.resolve();
-    if (!Updates.isEmbeddedLaunch || Updates.isEmergencyLaunch) {
-      logger.info("Preserving existing update request headers on OTA launch");
-      _headersSyncPromise = Promise.resolve();
-      return _headersSyncPromise;
-    }
-
-    _headersSyncPromise = AppMeta.load()
-      .then(() => Updater._applyRequestHeaders())
-      .catch((err) => {
-        logger.warn("Failed to initialize updater headers", err);
-      });
-    return _headersSyncPromise;
-  },
-
-  _applyRequestHeaders() {
-    const env = getFoundationConfig().env;
-    const headers: Record<string, string> = {
-      "expo-channel-name": env.MUS_CHANNEL ?? "",
-      "mus-device-id": AppMeta.deviceId,
-    };
-    try {
-      Updates.setUpdateRequestHeadersOverride(headers);
-    } catch (err) {
-      logger.warn("Failed to set update request headers", err);
     }
   },
 

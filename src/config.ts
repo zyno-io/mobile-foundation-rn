@@ -44,7 +44,7 @@ export interface FoundationConfig {
         SENTRY_DSN?: string;
         LOGGER_URL?: string;
         CDN_URL?: string;
-        /** Mobile Update Server config. MUS_CHANNEL also enables device-targeted OTA headers. */
+        /** Mobile Update Server config. MUS_CHANNEL also enables syncing the device id to the update server as an expo-updates extra param (`mus-device-id`). */
         MUS_URL?: string;
         MUS_APP_ID?: string;
         MUS_CHANNEL?: string;
@@ -55,7 +55,13 @@ export interface FoundationConfig {
     };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     fonts?: Record<string, any>;
+    /** Timeout (ms) for the Starting/Checking and Downloading phases shown by the Updater,
+     * and the deadline for the launch update check (default 5000 for the launch check). */
     updaterTimeout?: number;
+    /** Hold `Updater.statusText` non-null from launch until the launch OTA check settles,
+     * so a Startup screen gated on `statusText === null` cannot race the check.
+     * Default true. Set false to opt out. Requires `useSetupFoundation`. */
+    launchUpdateGate?: boolean;
     /** iOS: wait for native protected-data availability before managed storage
      * and metadata operations. Default false attempts working background reads
      * immediately and recovers denied operations with one retry after availability.
