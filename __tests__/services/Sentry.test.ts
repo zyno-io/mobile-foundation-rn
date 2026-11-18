@@ -1,11 +1,37 @@
 import { createMockConfig } from '../test-utils';
 import { mockProtectedDataNative } from '../helpers/protectedDataMock';
 
-describe('Sentry metadata initialization', () => {
+describe('Sentry initialization', () => {
     beforeEach(() => {
         jest.resetModules();
         jest.clearAllMocks();
         require('../../src/config').configureFoundation(createMockConfig());
+    });
+
+    it('uses MetricKit for iOS hang diagnostics', () => {
+        const Sentry = require('@sentry/react-native');
+        require('../../src/services/Sentry').SentryHelper.init();
+
+        expect(Sentry.init).toHaveBeenCalledWith(expect.objectContaining({
+            enableMetricKit: true,
+            enableAppHangTracking: false,
+        }));
+    });
+
+    it('keeps the SDK hang reporting defaults on Android', () => {
+        const { Platform } = require('react-native');
+        const platform = jest.replaceProperty(Platform, 'OS', 'android');
+        try {
+            const Sentry = require('@sentry/react-native');
+            require('../../src/services/Sentry').SentryHelper.init();
+
+            expect(Sentry.init).toHaveBeenCalledTimes(1);
+            const [options] = Sentry.init.mock.calls[0];
+            expect(options).not.toHaveProperty('enableMetricKit');
+            expect(options).not.toHaveProperty('enableAppHangTracking');
+        } finally {
+            platform.restore();
+        }
     });
 
     it('handles a failed metadata read without setting an empty user ID', async () => {

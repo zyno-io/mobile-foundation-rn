@@ -20,6 +20,8 @@ export class SentryHelper {
             dist: Platform.OS,
             debug: false,
             enableNativeFramesTracking: true,
+            // Display blanking during an iOS call can trigger false App Hang V2 reports.
+            ...(Platform.OS === 'ios' ? { enableMetricKit: true, enableAppHangTracking: false } : {}),
             integrations: [navigationIntegration]
         });
         void AppMeta.load().then(() => {
